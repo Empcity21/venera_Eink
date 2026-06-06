@@ -35,7 +35,7 @@ class _AggregatedSearchPageState extends State<AggregatedSearchPage> {
 
   final _preloadingKeys = <String>{};
 
-  static const _kSourceRowHeight = 220.0;
+  static const _kSourceRowHeight = 236.0;
 
   bool get _eInkMode => appdata.settings['eInkMode'] == true;
 
@@ -351,7 +351,7 @@ class _SliverSearchResultState extends State<_SliverSearchResult>
   static const _kComicHeight = 176.0;
 
   double get _comicHeight =>
-      appdata.settings['eInkMode'] == true ? 144.0 : _kComicHeight;
+      appdata.settings['eInkMode'] == true ? 162.0 : _kComicHeight;
 
   get _comicWidth => _comicHeight * 0.7;
 
