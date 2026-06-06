@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:venera/components/components.dart';
 import 'package:venera/foundation/app.dart';
 import 'package:venera/foundation/appdata.dart';
+import 'package:venera/foundation/comic_source/comic_source.dart';
 import 'package:venera/foundation/comic_type.dart';
 import 'package:venera/foundation/local.dart';
 import 'package:venera/foundation/log.dart';
@@ -181,6 +182,7 @@ class _LocalComicsPageState extends State<LocalComicsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final isEInkMode = appdata.settings['eInkMode'] == true;
     List<Widget> selectActions = [
       IconButton(
           icon: const Icon(Icons.select_all),
@@ -227,9 +229,7 @@ class _LocalComicsPageState extends State<LocalComicsPage> {
       ),
     ];
 
-    var body = Scaffold(
-      body: SmoothCustomScrollView(
-        slivers: [
+    final slivers = <Widget>[
           if (!searchMode)
             SliverAppbar(
               leading: Tooltip(
@@ -294,63 +294,43 @@ class _LocalComicsPageState extends State<LocalComicsPage> {
                     ),
               actions: multiSelectMode ? selectActions : null,
             ),
-          SliverGridComics(
-            comics: comics,
-            selections: selectedComics,
-            onLongPressed: (c, heroID) {
-              setState(() {
-                multiSelectMode = true;
-                selectedComics[c as LocalComic] = true;
-              });
-            },
-            onTap: (c, heroID) {
-              if (multiSelectMode) {
+          if (isEInkMode)
+            SliverFillRemaining(
+              child: EInkComicGridPager(
+                comics: comics,
+                selections: selectedComics,
+                onLongPressed: (c, heroID) {
+                  setState(() {
+                    multiSelectMode = true;
+                    selectedComics[c as LocalComic] = true;
+                  });
+                },
+                onTap: _onComicTap,
+                menuBuilder: buildComicMenu,
+              ),
+            )
+          else
+            SliverGridComics(
+              comics: comics,
+              selections: selectedComics,
+              onLongPressed: (c, heroID) {
                 setState(() {
-                  if (selectedComics.containsKey(c as LocalComic)) {
-                    selectedComics.remove(c);
-                  } else {
-                    selectedComics[c] = true;
-                  }
-                  if (selectedComics.isEmpty) {
-                    multiSelectMode = false;
-                  }
+                  multiSelectMode = true;
+                  selectedComics[c as LocalComic] = true;
                 });
-              } else {
-                // prevent dirty data
-                var comic =
-                    LocalManager().find(c.id, ComicType.fromKey(c.sourceKey))!;
-                comic.read();
-              }
-            },
-            menuBuilder: (c) {
-              return [
-                MenuEntry(
-                  icon: Icons.folder_open,
-                  text: "Open Folder".tl,
-                  onClick: () {
-                    openComicFolder(c as LocalComic);
-                  },
-                ),
-                MenuEntry(
-                  icon: Icons.delete,
-                  text: "Delete".tl,
-                  onClick: () {
-                    deleteComics([c as LocalComic]).then((value) {
-                      if (value && multiSelectMode) {
-                        setState(() {
-                          multiSelectMode = false;
-                          selectedComics.clear();
-                        });
-                      }
-                    });
-                  },
-                ),
-                ...exportActions([c as LocalComic]),
-              ];
-            },
-          ),
-        ],
-      ),
+              },
+              onTap: _onComicTap,
+              menuBuilder: buildComicMenu,
+            ),
+        ];
+
+    var body = Scaffold(
+      body: isEInkMode
+          ? CustomScrollView(
+              physics: const NeverScrollableScrollPhysics(),
+              slivers: slivers,
+            )
+          : SmoothCustomScrollView(slivers: slivers),
     );
 
     return PopScope(
@@ -372,6 +352,52 @@ class _LocalComicsPageState extends State<LocalComicsPage> {
       },
       child: body,
     );
+  }
+
+  void _onComicTap(Comic c, int heroID) {
+    if (multiSelectMode) {
+      setState(() {
+        if (selectedComics.containsKey(c as LocalComic)) {
+          selectedComics.remove(c);
+        } else {
+          selectedComics[c] = true;
+        }
+        if (selectedComics.isEmpty) {
+          multiSelectMode = false;
+        }
+      });
+    } else {
+      // prevent dirty data
+      var comic = LocalManager().find(c.id, ComicType.fromKey(c.sourceKey))!;
+      comic.read();
+    }
+  }
+
+  List<MenuEntry> buildComicMenu(Comic c) {
+    return [
+      MenuEntry(
+        icon: Icons.folder_open,
+        text: "Open Folder".tl,
+        onClick: () {
+          openComicFolder(c as LocalComic);
+        },
+      ),
+      MenuEntry(
+        icon: Icons.delete,
+        text: "Delete".tl,
+        onClick: () {
+          deleteComics([c as LocalComic]).then((value) {
+            if (value && multiSelectMode) {
+              setState(() {
+                multiSelectMode = false;
+                selectedComics.clear();
+              });
+            }
+          });
+        },
+      ),
+      ...exportActions([c as LocalComic]),
+    ];
   }
 
   Future<bool> deleteComics(List<LocalComic> comics) async {

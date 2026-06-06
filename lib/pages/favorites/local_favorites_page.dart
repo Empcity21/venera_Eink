@@ -398,9 +398,9 @@ class _LocalFavoritesPageState extends State<_LocalFavoritesPage> {
     }
     final visibleComics = searchMode ? searchResults : filterComics(comics);
 
-    Widget body = SmoothCustomScrollView(
-      controller: scrollController,
-      slivers: [
+    final isEInkMode = appdata.settings['eInkMode'] == true;
+
+    final slivers = <Widget>[
         if (!searchMode && !multiSelectMode)
           SliverAppbar(
             style: context.width < changePoint
@@ -748,35 +748,30 @@ class _LocalFavoritesPageState extends State<_LocalFavoritesPage> {
             ).paddingBottom(8).paddingRight(8),
           ),
         if (isLoading)
-          SliverToBoxAdapter(
-            child: SizedBox(
-              height: 200,
-              child: Center(
-                child: appdata.settings['eInkMode'] == true
-                    ? Text("Loading".tl)
-                    : const CircularProgressIndicator(),
-              ),
-            ),
-          )
+          isEInkMode
+              ? SliverFillRemaining(
+                  child: Center(
+                    child: Text("Loading".tl),
+                  ),
+                )
+              : SliverToBoxAdapter(
+                  child: SizedBox(
+                    height: 200,
+                    child: Center(
+                      child: const CircularProgressIndicator(),
+                    ),
+                  ),
+                )
         else
-          appdata.settings['eInkMode'] == true
-              ? SliverLayoutBuilder(
-                  builder: (context, constraints) {
-                    final remainingHeight =
-                        max(1.0, constraints.remainingPaintExtent);
-                    return SliverToBoxAdapter(
-                      child: SizedBox(
-                        height: remainingHeight,
-                        child: EInkComicGridPager(
-                          comics: visibleComics,
-                          selections: selectedComics,
-                          menuBuilder: buildComicMenu,
-                          onTap: onComicTap,
-                          onLongPressed: onComicLongPressed,
-                        ),
-                      ),
-                    );
-                  },
+          isEInkMode
+              ? SliverFillRemaining(
+                  child: EInkComicGridPager(
+                    comics: visibleComics,
+                    selections: selectedComics,
+                    menuBuilder: buildComicMenu,
+                    onTap: onComicTap,
+                    onLongPressed: onComicLongPressed,
+                  ),
                 )
               : SliverGridComics(
                   comics: visibleComics,
@@ -785,16 +780,28 @@ class _LocalFavoritesPageState extends State<_LocalFavoritesPage> {
                   onTap: onComicTap,
                   onLongPressed: onComicLongPressed,
                 ),
-      ],
-    );
-    body = AppScrollBar(
-      topPadding: 48,
-      controller: scrollController,
-      child: ScrollConfiguration(
-        behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
-        child: body,
-      ),
-    );
+      ];
+    Widget body;
+    if (isEInkMode) {
+      body = CustomScrollView(
+        controller: scrollController,
+        physics: const NeverScrollableScrollPhysics(),
+        slivers: slivers,
+      );
+    } else {
+      body = SmoothCustomScrollView(
+        controller: scrollController,
+        slivers: slivers,
+      );
+      body = AppScrollBar(
+        topPadding: 48,
+        controller: scrollController,
+        child: ScrollConfiguration(
+          behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+          child: body,
+        ),
+      );
+    }
     return PopScope(
       canPop: !multiSelectMode && !searchMode,
       onPopInvokedWithResult: (didPop, result) {

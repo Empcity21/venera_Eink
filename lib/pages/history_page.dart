@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:venera/components/components.dart';
 import 'package:venera/foundation/app.dart';
+import 'package:venera/foundation/appdata.dart';
 import 'package:venera/foundation/comic_source/comic_source.dart';
 import 'package:venera/foundation/comic_type.dart';
 import 'package:venera/foundation/history.dart';
@@ -145,6 +146,7 @@ class _HistoryPageState extends State<HistoryPage> {
 
   @override
   Widget build(BuildContext context) {
+    final isEInkMode = appdata.settings['eInkMode'] == true;
     List<Widget> selectActions = [
       IconButton(
           icon: const Icon(Icons.select_all),
@@ -233,6 +235,119 @@ class _HistoryPageState extends State<HistoryPage> {
       ),
     ];
 
+    final slivers = <Widget>[
+      SliverAppbar(
+        leading: Tooltip(
+          message: multiSelectMode ? "Cancel".tl : "Back".tl,
+          child: IconButton(
+            onPressed: () {
+              if (multiSelectMode) {
+                setState(() {
+                  multiSelectMode = false;
+                  selectedComics.clear();
+                });
+              } else {
+                context.pop();
+              }
+            },
+            icon: multiSelectMode
+                ? const Icon(Icons.close)
+                : const Icon(Icons.arrow_back),
+          ),
+        ),
+        title: multiSelectMode
+            ? Text(selectedComics.length.toString())
+            : Text('History'.tl),
+        actions: multiSelectMode ? selectActions : normalActions,
+      ),
+      if (isEInkMode)
+        SliverFillRemaining(
+          child: EInkComicGridPager(
+            comics: comics,
+            selections: selectedComics,
+            onLongPressed: null,
+            onTap: multiSelectMode
+                ? (c, heroID) {
+                    setState(() {
+                      if (selectedComics.containsKey(c as History)) {
+                        selectedComics.remove(c);
+                      } else {
+                        selectedComics[c] = true;
+                      }
+                      if (selectedComics.isEmpty) {
+                        multiSelectMode = false;
+                      }
+                    });
+                  }
+                : null,
+            badgeBuilder: (c) {
+              return ComicSource.find(c.sourceKey)?.name;
+            },
+            menuBuilder: (c) {
+              return [
+                MenuEntry(
+                  icon: Icons.refresh,
+                  text: 'Refresh Info'.tl,
+                  onClick: () {
+                    _refreshHistory(c as History);
+                  },
+                ),
+                MenuEntry(
+                  icon: Icons.remove,
+                  text: 'Remove'.tl,
+                  color: context.colorScheme.error,
+                  onClick: () {
+                    _removeHistory(c as History);
+                  },
+                ),
+              ];
+            },
+          ),
+        )
+      else
+        SliverGridComics(
+          comics: comics,
+          selections: selectedComics,
+          onLongPressed: null,
+          onTap: multiSelectMode
+              ? (c, heroID) {
+                  setState(() {
+                    if (selectedComics.containsKey(c as History)) {
+                      selectedComics.remove(c);
+                    } else {
+                      selectedComics[c] = true;
+                    }
+                    if (selectedComics.isEmpty) {
+                      multiSelectMode = false;
+                    }
+                  });
+                }
+              : null,
+          badgeBuilder: (c) {
+            return ComicSource.find(c.sourceKey)?.name;
+          },
+          menuBuilder: (c) {
+            return [
+              MenuEntry(
+                icon: Icons.refresh,
+                text: 'Refresh Info'.tl,
+                onClick: () {
+                  _refreshHistory(c as History);
+                },
+              ),
+              MenuEntry(
+                icon: Icons.remove,
+                text: 'Remove'.tl,
+                color: context.colorScheme.error,
+                onClick: () {
+                  _removeHistory(c as History);
+                },
+              ),
+            ];
+          },
+        ),
+    ];
+
     return PopScope(
       canPop: !multiSelectMode,
       onPopInvokedWithResult: (didPop, result) {
@@ -244,75 +359,12 @@ class _HistoryPageState extends State<HistoryPage> {
         }
       },
       child: Scaffold(
-        body: SmoothCustomScrollView(
-          slivers: [
-            SliverAppbar(
-              leading: Tooltip(
-                message: multiSelectMode ? "Cancel".tl : "Back".tl,
-                child: IconButton(
-                  onPressed: () {
-                    if (multiSelectMode) {
-                      setState(() {
-                        multiSelectMode = false;
-                        selectedComics.clear();
-                      });
-                    } else {
-                      context.pop();
-                    }
-                  },
-                  icon: multiSelectMode
-                      ? const Icon(Icons.close)
-                      : const Icon(Icons.arrow_back),
-                ),
-              ),
-              title: multiSelectMode
-                  ? Text(selectedComics.length.toString())
-                  : Text('History'.tl),
-              actions: multiSelectMode ? selectActions : normalActions,
-            ),
-            SliverGridComics(
-              comics: comics,
-              selections: selectedComics,
-              onLongPressed: null,
-              onTap: multiSelectMode
-                  ? (c, heroID) {
-                      setState(() {
-                        if (selectedComics.containsKey(c as History)) {
-                          selectedComics.remove(c);
-                        } else {
-                          selectedComics[c] = true;
-                        }
-                        if (selectedComics.isEmpty) {
-                          multiSelectMode = false;
-                        }
-                      });
-                    }
-                  : null,
-              badgeBuilder: (c) {
-                return ComicSource.find(c.sourceKey)?.name;
-              },
-              menuBuilder: (c) {
-                return [
-                  MenuEntry(
-                    icon: Icons.refresh,
-                    text: 'Refresh Info'.tl,
-                    onClick: () {
-                      _refreshHistory(c as History);
-                    },
-                  ),
-                  MenuEntry(
-                    icon: Icons.remove,
-                    text: 'Remove'.tl,
-                    color: context.colorScheme.error,
-                    onClick: () {
-                      _removeHistory(c as History);
-                    },
-                  ),
-                ];
-              },
-            ),
-          ],
-        ),
+        body: isEInkMode
+            ? CustomScrollView(
+                physics: const NeverScrollableScrollPhysics(),
+                slivers: slivers,
+              )
+            : SmoothCustomScrollView(slivers: slivers),
       ),
     );
   }

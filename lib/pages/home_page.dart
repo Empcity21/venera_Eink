@@ -1,8 +1,11 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:sliver_tools/sliver_tools.dart';
 import 'package:url_launcher/url_launcher_string.dart';
 import 'package:venera/components/components.dart';
 import 'package:venera/foundation/app.dart';
+import 'package:venera/foundation/appdata.dart';
 import 'package:venera/foundation/comic_source/comic_source.dart';
 import 'package:venera/foundation/consts.dart';
 import 'package:venera/foundation/favorites.dart';
@@ -296,31 +299,46 @@ class _HistoryState extends State<_History> {
                 ),
               ).paddingHorizontal(16),
               if (history.isNotEmpty)
-                SizedBox(
-                  height: 136,
-                  child: ListView.builder(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: history.length,
-                    itemBuilder: (context, index) {
-                      final heroID = history[index].id.hashCode;
-                      return SimpleComicTile(
-                        comic: history[index],
-                        heroID: heroID,
-                        onTap: () {
+                appdata.settings['eInkMode'] == true
+                    ? _HomeComicStrip<History>(
+                        comics: history,
+                        onTap: (comic, heroID) {
                           context.to(
                             () => ComicPage(
-                              id: history[index].id,
-                              sourceKey: history[index].type.sourceKey,
-                              cover: history[index].cover,
-                              title: history[index].title,
+                              id: comic.id,
+                              sourceKey: comic.type.sourceKey,
+                              cover: comic.cover,
+                              title: comic.title,
                               heroID: heroID,
                             ),
                           );
                         },
-                      ).paddingHorizontal(8).paddingVertical(2);
-                    },
-                  ),
-                ).paddingHorizontal(8).paddingBottom(16),
+                      ).paddingHorizontal(8).paddingBottom(16)
+                    : SizedBox(
+                        height: 136,
+                        child: ListView.builder(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: history.length,
+                          itemBuilder: (context, index) {
+                            final heroID = history[index].id.hashCode;
+                            return SimpleComicTile(
+                              comic: history[index],
+                              heroID: heroID,
+                              onTap: () {
+                                context.to(
+                                  () => ComicPage(
+                                    id: history[index].id,
+                                    sourceKey: history[index].type.sourceKey,
+                                    cover: history[index].cover,
+                                    title: history[index].title,
+                                    heroID: heroID,
+                                  ),
+                                );
+                              },
+                            ).paddingHorizontal(8).paddingVertical(2);
+                          },
+                        ),
+                      ).paddingHorizontal(8).paddingBottom(16),
             ],
           ),
         ),
@@ -406,31 +424,46 @@ class _LocalState extends State<_Local> {
                 ),
               ).paddingHorizontal(16),
               if (local.isNotEmpty)
-                SizedBox(
-                  height: 136,
-                  child: ListView.builder(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: local.length,
-                    itemBuilder: (context, index) {
-                      final heroID = local[index].id.hashCode;
-                      return SimpleComicTile(
-                        comic: local[index],
-                        heroID: heroID,
-                        onTap: () {
+                appdata.settings['eInkMode'] == true
+                    ? _HomeComicStrip<LocalComic>(
+                        comics: local,
+                        onTap: (comic, heroID) {
                           context.to(
                             () => ComicPage(
-                              id: local[index].id,
-                              sourceKey: local[index].sourceKey,
-                              cover: local[index].cover,
-                              title: local[index].title,
+                              id: comic.id,
+                              sourceKey: comic.sourceKey,
+                              cover: comic.cover,
+                              title: comic.title,
                               heroID: heroID,
                             ),
                           );
                         },
-                      ).paddingHorizontal(8).paddingVertical(2);
-                    },
-                  ),
-                ).paddingHorizontal(8),
+                      ).paddingHorizontal(8)
+                    : SizedBox(
+                        height: 136,
+                        child: ListView.builder(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: local.length,
+                          itemBuilder: (context, index) {
+                            final heroID = local[index].id.hashCode;
+                            return SimpleComicTile(
+                              comic: local[index],
+                              heroID: heroID,
+                              onTap: () {
+                                context.to(
+                                  () => ComicPage(
+                                    id: local[index].id,
+                                    sourceKey: local[index].sourceKey,
+                                    cover: local[index].cover,
+                                    title: local[index].title,
+                                    heroID: heroID,
+                                  ),
+                                );
+                              },
+                            ).paddingHorizontal(8).paddingVertical(2);
+                          },
+                        ),
+                      ).paddingHorizontal(8),
               Row(
                 children: [
                   if (LocalManager().downloadingTasks.isNotEmpty)
@@ -846,6 +879,114 @@ class __AnimatedDownloadingIconState extends State<_AnimatedDownloadingIcon>
           ),
         );
       },
+    );
+  }
+}
+
+class _HomeComicStrip<T extends Comic> extends StatefulWidget {
+  const _HomeComicStrip({
+    required this.comics,
+    required this.onTap,
+  });
+
+  final List<T> comics;
+
+  final void Function(T comic, int heroID) onTap;
+
+  @override
+  State<_HomeComicStrip<T>> createState() => _HomeComicStripState<T>();
+}
+
+class _HomeComicStripState<T extends Comic> extends State<_HomeComicStrip<T>> {
+  int _page = 0;
+
+  void _toNextPage(int pageCount) {
+    if (_page >= pageCount - 1) {
+      return;
+    }
+    setState(() {
+      _page++;
+    });
+  }
+
+  void _toPreviousPage() {
+    if (_page <= 0) {
+      return;
+    }
+    setState(() {
+      _page--;
+    });
+  }
+
+  void _handleDragEnd(DragEndDetails details, int pageCount) {
+    final velocity = details.primaryVelocity ?? 0;
+    if (velocity < -80) {
+      _toNextPage(pageCount);
+    } else if (velocity > 80) {
+      _toPreviousPage();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 136,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          const itemWidth = 114.0;
+          final availableWidth = math.max(1.0, constraints.maxWidth);
+          final itemsPerPage = math.max(1, availableWidth ~/ itemWidth);
+          final pageCount =
+              math.max(1, (widget.comics.length / itemsPerPage).ceil());
+          if (_page >= pageCount) {
+            _page = pageCount - 1;
+          }
+          final start = _page * itemsPerPage;
+          final end = math.min(start + itemsPerPage, widget.comics.length);
+          final pageComics = start >= widget.comics.length
+              ? <T>[]
+              : widget.comics.sublist(start, end);
+
+          return GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onHorizontalDragEnd: (details) => _handleDragEnd(details, pageCount),
+            child: Stack(
+              children: [
+                Row(
+                  children: [
+                    for (final comic in pageComics)
+                      SimpleComicTile(
+                        comic: comic,
+                        heroID: comic.id.hashCode,
+                        onTap: () {
+                          widget.onTap(comic, comic.id.hashCode);
+                        },
+                      ).paddingHorizontal(8).paddingVertical(2),
+                  ],
+                ),
+                if (_page > 0)
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: IconButton(
+                      onPressed: _toPreviousPage,
+                      icon: const Icon(Icons.chevron_left),
+                      tooltip: "Back".tl,
+                    ),
+                  ),
+                if (_page < pageCount - 1)
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: IconButton(
+                      onPressed: () => _toNextPage(pageCount),
+                      icon: const Icon(Icons.chevron_right),
+                      tooltip: "Next".tl,
+                    ),
+                  ),
+              ],
+            ),
+          );
+        },
+      ),
     );
   }
 }

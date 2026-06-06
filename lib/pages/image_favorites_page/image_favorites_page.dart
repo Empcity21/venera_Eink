@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -19,6 +21,7 @@ import 'package:venera/utils/file_type.dart';
 import 'package:venera/utils/io.dart';
 import 'package:venera/utils/tags_translation.dart';
 import 'package:venera/utils/translations.dart';
+import 'package:venera/utils/volume.dart';
 
 part "image_favorites_item.dart";
 
@@ -189,6 +192,10 @@ class _ImageFavoritesPageState extends State<ImageFavoritesPage> {
       buildMultiSelectMenu(),
     ];
 
+    if (appdata.settings['eInkMode'] == true) {
+      return _buildEInkPage(selectActions);
+    }
+
     var scrollWidget = SmoothCustomScrollView(
       controller: scrollController,
       slivers: [
@@ -323,6 +330,120 @@ class _ImageFavoritesPageState extends State<ImageFavoritesPage> {
     );
   }
 
+  Widget _buildEInkPage(List<Widget> selectActions) {
+    return PopScope(
+      canPop: !multiSelectMode && !searchMode,
+      onPopInvokedWithResult: (didPop, result) {
+        if (multiSelectMode) {
+          setState(() {
+            multiSelectMode = false;
+            selectedImageFavorites.clear();
+          });
+        } else if (searchMode) {
+          controller.clear();
+          searchMode = false;
+          updateImageFavorites();
+        }
+      },
+      child: Column(
+        children: [
+          if (!searchMode && !multiSelectMode)
+            Appbar(
+              title: Text("Image Favorites".tl),
+              actions: [
+                Tooltip(
+                  message: "Search".tl,
+                  child: IconButton(
+                    icon: const Icon(Icons.search),
+                    onPressed: () {
+                      setState(() {
+                        searchMode = true;
+                      });
+                    },
+                  ),
+                ),
+                Tooltip(
+                  message: "Sort".tl,
+                  child: IconButton(
+                    isSelected: timeFilterSelect != TimeRange.all ||
+                        numFilterSelect != numFilterList[0],
+                    icon: const Icon(Icons.sort_rounded),
+                    onPressed: sort,
+                  ),
+                ),
+                Tooltip(
+                  message: multiSelectMode
+                      ? "Exit Multi-Select".tl
+                      : "Multi-Select".tl,
+                  child: IconButton(
+                    icon: const Icon(Icons.checklist),
+                    onPressed: () {
+                      setState(() {
+                        multiSelectMode = !multiSelectMode;
+                      });
+                    },
+                  ),
+                ),
+              ],
+            )
+          else if (multiSelectMode)
+            Appbar(
+              leading: Tooltip(
+                message: "Cancel".tl,
+                child: IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () {
+                    setState(() {
+                      multiSelectMode = false;
+                      selectedImageFavorites.clear();
+                    });
+                  },
+                ),
+              ),
+              title: Text(selectedImageFavorites.length.toString()),
+              actions: selectActions,
+            )
+          else if (searchMode)
+            Appbar(
+              leading: Tooltip(
+                message: "Cancel".tl,
+                child: IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () {
+                    controller.clear();
+                    setState(() {
+                      searchMode = false;
+                      controller.clear();
+                      updateImageFavorites();
+                    });
+                  },
+                ),
+              ),
+              title: TextField(
+                autofocus: true,
+                controller: controller,
+                decoration: InputDecoration(
+                  hintText: "Search".tl,
+                  border: InputBorder.none,
+                ),
+                onChanged: (v) {
+                  updateImageFavorites();
+                },
+              ),
+            ),
+          Expanded(
+            child: _EInkImageFavoritesPager(
+              comics: comics,
+              selectedImageFavorites: selectedImageFavorites,
+              addSelected: addSelected,
+              multiSelectMode: multiSelectMode,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   void sort() {
     showDialog(
       context: context,
@@ -339,6 +460,194 @@ class _ImageFavoritesPageState extends State<ImageFavoritesPage> {
             });
             sortImageFavorites();
           },
+        );
+      },
+    );
+  }
+}
+
+class _EInkImageFavoritesPager extends StatefulWidget {
+  const _EInkImageFavoritesPager({
+    required this.comics,
+    required this.selectedImageFavorites,
+    required this.addSelected,
+    required this.multiSelectMode,
+  });
+
+  final List<ImageFavoritesComic> comics;
+
+  final Map<ImageFavorite, bool> selectedImageFavorites;
+
+  final Function(ImageFavorite) addSelected;
+
+  final bool multiSelectMode;
+
+  @override
+  State<_EInkImageFavoritesPager> createState() =>
+      _EInkImageFavoritesPagerState();
+}
+
+class _EInkImageFavoritesPagerState extends State<_EInkImageFavoritesPager> {
+  int _page = 0;
+
+  int _lastPageCount = 1;
+
+  static const _kItemHeight = 236.0;
+
+  bool get _canHandleVolumeKey {
+    if (appdata.settings['eInkMode'] != true || !App.isAndroid) {
+      return false;
+    }
+    if (appdata.settings['enableTurnPageByVolumeKey'] != true) {
+      return false;
+    }
+    if (!TickerMode.of(context)) {
+      return false;
+    }
+    final route = ModalRoute.of(context);
+    return route?.isCurrent ?? true;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    appdata.settings.addListener(_onSettingsChanged);
+    _configureVolumeListener();
+  }
+
+  @override
+  void didUpdateWidget(covariant _EInkImageFavoritesPager oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!oldWidget.comics.isEqualTo(widget.comics)) {
+      _page = 0;
+    }
+  }
+
+  @override
+  void dispose() {
+    VolumePageTurnRegistry.unregister(this);
+    appdata.settings.removeListener(_onSettingsChanged);
+    super.dispose();
+  }
+
+  void _onSettingsChanged() {
+    _configureVolumeListener();
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  void _configureVolumeListener() {
+    final shouldListen = appdata.settings['eInkMode'] == true &&
+        App.isAndroid &&
+        appdata.settings['enableTurnPageByVolumeKey'] == true;
+    if (!shouldListen) {
+      VolumePageTurnRegistry.unregister(this);
+      return;
+    }
+    VolumePageTurnRegistry.register(
+      this,
+      canHandle: () => _canHandleVolumeKey,
+      onDown: _toNextPage,
+      onUp: _toPreviousPage,
+    );
+  }
+
+  void _toNextPage() {
+    if (_page >= _lastPageCount - 1) {
+      return;
+    }
+    setState(() {
+      _page++;
+    });
+  }
+
+  void _toPreviousPage() {
+    if (_page <= 0) {
+      return;
+    }
+    setState(() {
+      _page--;
+    });
+  }
+
+  void _handleDragEnd(DragEndDetails details) {
+    final velocity = details.primaryVelocity ?? 0;
+    if (velocity < -80) {
+      _toNextPage();
+    } else if (velocity > 80) {
+      _toPreviousPage();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const selectorHeight = 52.0;
+        final listHeight = math.max(1.0, constraints.maxHeight - selectorHeight);
+        final itemsPerPage = math.max(1, listHeight ~/ _kItemHeight);
+        _lastPageCount =
+            math.max(1, (widget.comics.length / itemsPerPage).ceil());
+        if (_page >= _lastPageCount) {
+          _page = _lastPageCount - 1;
+        }
+        final start = _page * itemsPerPage;
+        final end = math.min(start + itemsPerPage, widget.comics.length);
+        final pageComics = start >= widget.comics.length
+            ? <ImageFavoritesComic>[]
+            : widget.comics.sublist(start, end);
+
+        return Column(
+          children: [
+            SizedBox(
+              height: selectorHeight,
+              child: Row(
+                children: [
+                  FilledButton(
+                    onPressed: _page > 0 ? _toPreviousPage : null,
+                    child: Text("Back".tl),
+                  ).fixWidth(84),
+                  Expanded(
+                    child: Center(
+                      child: Text(
+                        "${"Page".tl} ${_page + 1} / $_lastPageCount",
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ),
+                  FilledButton(
+                    onPressed:
+                        _page < _lastPageCount - 1 ? _toNextPage : null,
+                    child: Text("Next".tl),
+                  ).fixWidth(84),
+                ],
+              ).paddingHorizontal(16),
+            ),
+            Expanded(
+              child: GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onHorizontalDragEnd: _handleDragEnd,
+                child: Column(
+                  children: [
+                    for (final comic in pageComics)
+                      SizedBox(
+                        height: _kItemHeight,
+                        child: _ImageFavoritesItem(
+                          imageFavoritesComic: comic,
+                          selectedImageFavorites:
+                              widget.selectedImageFavorites,
+                          addSelected: widget.addSelected,
+                          multiSelectMode: widget.multiSelectMode,
+                          finalImageFavoritesComicList: widget.comics,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         );
       },
     );

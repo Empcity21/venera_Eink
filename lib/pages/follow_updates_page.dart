@@ -161,6 +161,9 @@ class _FollowUpdatesPageState extends AutomaticGlobalState<FollowUpdatesPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (appdata.settings['eInkMode'] == true) {
+      return buildEInkPage(context);
+    }
     return Scaffold(
       body: SmoothCustomScrollView(
         slivers: [
@@ -172,6 +175,64 @@ class _FollowUpdatesPageState extends AutomaticGlobalState<FollowUpdatesPage> {
           SliverPadding(padding: const EdgeInsets.only(top: 8)),
           buildUpdatedComics(),
           buildAllComics(),
+        ],
+      ),
+    );
+  }
+
+  Widget buildEInkPage(BuildContext context) {
+    return Scaffold(
+      body: Column(
+        children: [
+          Appbar(
+            title: Text('Follow Updates'.tl),
+            actions: [
+              if (folder != null)
+                TextButton(
+                  onPressed: showSelector,
+                  child: Text("Change Folder".tl),
+                ),
+              if (folder != null)
+                IconButton(
+                  icon: const Icon(Icons.refresh),
+                  tooltip: "Check Now".tl,
+                  onPressed: checkNow,
+                ),
+            ],
+          ),
+          if (folder == null)
+            Expanded(
+              child: Center(
+                child: FilledButton.tonal(
+                  onPressed: showSelector,
+                  child: Text("Choose Folder".tl),
+                ),
+              ),
+            )
+          else
+            Expanded(
+              child: DefaultTabController(
+                length: 2,
+                child: Column(
+                  children: [
+                    AppTabBar(
+                      tabs: [
+                        Tab(text: "Updates".tl),
+                        Tab(text: "All Comics".tl),
+                      ],
+                    ),
+                    Expanded(
+                      child: TabViewBody(
+                        children: [
+                          EInkComicGridPager(comics: updatedComics),
+                          EInkComicGridPager(comics: allComics),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
         ],
       ),
     );

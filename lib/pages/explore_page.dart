@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:venera/components/components.dart';
 import 'package:venera/foundation/app.dart';
@@ -9,6 +11,7 @@ import 'package:venera/pages/comic_source_page.dart';
 import 'package:venera/pages/settings/settings_page.dart';
 import 'package:venera/utils/ext.dart';
 import 'package:venera/utils/translations.dart';
+import 'package:venera/utils/volume.dart';
 
 class ExplorePage extends StatefulWidget {
   const ExplorePage({super.key});
@@ -398,6 +401,13 @@ class _MixedExplorePageState
 
   @override
   Widget buildContent(BuildContext context, List<Object> data) {
+    if (appdata.settings['eInkMode'] == true) {
+      return _EInkExplorePartsPager(
+        parts: _objectsToParts(data),
+        sourceKey: widget.sourceKey,
+        onLastPage: haveNextPage ? nextPage : null,
+      );
+    }
     return SmoothCustomScrollView(
       controller: widget.controller,
       slivers: [
@@ -405,6 +415,29 @@ class _MixedExplorePageState
         const SliverListLoadingIndicator(),
       ],
     );
+  }
+
+  List<ExplorePagePart> _objectsToParts(List<Object> data) {
+    final parts = <ExplorePagePart>[];
+    final cache = <Comic>[];
+    void flushCache() {
+      if (cache.isEmpty) {
+        return;
+      }
+      parts.add(ExplorePagePart("", List<Comic>.from(cache), null));
+      cache.clear();
+    }
+
+    for (final part in data) {
+      if (part is ExplorePagePart) {
+        flushCache();
+        parts.add(part);
+      } else {
+        cache.addAll(part as List<Comic>);
+      }
+    }
+    flushCache();
+    return parts;
   }
 
   @override
@@ -590,6 +623,12 @@ class _MultiPartExplorePageState extends State<_MultiPartExplorePage> {
   }
 
   Widget buildPage() {
+    if (appdata.settings['eInkMode'] == true) {
+      return _EInkExplorePartsPager(
+        parts: parts!,
+        sourceKey: widget.comicSourceKey,
+      );
+    }
     return SmoothCustomScrollView(
       key: const PageStorageKey('scroll'),
       controller: widget.controller,
@@ -601,5 +640,336 @@ class _MultiPartExplorePageState extends State<_MultiPartExplorePage> {
     for (var part in parts!) {
       yield* _buildExplorePagePart(part, widget.comicSourceKey);
     }
+  }
+}
+
+class _EInkExplorePartsPager extends StatefulWidget {
+  const _EInkExplorePartsPager({
+    required this.parts,
+    required this.sourceKey,
+    this.onLastPage,
+  });
+
+  final List<ExplorePagePart> parts;
+
+  final String sourceKey;
+
+  final VoidCallback? onLastPage;
+
+  @override
+  State<_EInkExplorePartsPager> createState() => _EInkExplorePartsPagerState();
+}
+
+class _EInkExplorePartsPagerState extends State<_EInkExplorePartsPager> {
+  int _page = 0;
+
+  int _lastPageCount = 1;
+
+  bool _lastPageNotified = false;
+
+  bool get _canHandleVolumeKey {
+    if (appdata.settings['eInkMode'] != true || !App.isAndroid) {
+      return false;
+    }
+    if (appdata.settings['enableTurnPageByVolumeKey'] != true) {
+      return false;
+    }
+    if (!TickerMode.of(context)) {
+      return false;
+    }
+    final route = ModalRoute.of(context);
+    return route?.isCurrent ?? true;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    appdata.settings.addListener(_onSettingsChanged);
+    _configureVolumeListener();
+  }
+
+  @override
+  void didUpdateWidget(covariant _EInkExplorePartsPager oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!oldWidget.parts.isEqualTo(widget.parts)) {
+      _lastPageNotified = false;
+      if (_page >= _lastPageCount) {
+        _page = math.max(0, _lastPageCount - 1);
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    VolumePageTurnRegistry.unregister(this);
+    appdata.settings.removeListener(_onSettingsChanged);
+    super.dispose();
+  }
+
+  void _onSettingsChanged() {
+    _configureVolumeListener();
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  void _configureVolumeListener() {
+    final shouldListen = appdata.settings['eInkMode'] == true &&
+        App.isAndroid &&
+        appdata.settings['enableTurnPageByVolumeKey'] == true;
+    if (!shouldListen) {
+      VolumePageTurnRegistry.unregister(this);
+      return;
+    }
+    VolumePageTurnRegistry.register(
+      this,
+      canHandle: () => _canHandleVolumeKey,
+      onDown: _toNextPage,
+      onUp: _toPreviousPage,
+    );
+  }
+
+  void _toNextPage() {
+    if (_page >= _lastPageCount - 1) {
+      widget.onLastPage?.call();
+      return;
+    }
+    setState(() {
+      _page++;
+      _lastPageNotified = false;
+    });
+  }
+
+  void _toPreviousPage() {
+    if (_page <= 0) {
+      return;
+    }
+    setState(() {
+      _page--;
+      _lastPageNotified = false;
+    });
+  }
+
+  void _handleDragEnd(DragEndDetails details) {
+    final velocity = details.primaryVelocity ?? 0;
+    if (velocity < -80) {
+      _toNextPage();
+    } else if (velocity > 80) {
+      _toPreviousPage();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.parts.isEmpty) {
+      return Center(
+        child: Text("Empty Page".tl),
+      );
+    }
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const selectorHeight = 52.0;
+        const titleHeight = 60.0;
+        final gridHeight =
+            math.max(1.0, constraints.maxHeight - selectorHeight - titleHeight);
+        final metrics = _EInkExploreGridMetrics.fromSize(
+          context,
+          Size(constraints.maxWidth, gridHeight),
+        );
+        final slices = _buildSlices(metrics.pageSize);
+        _lastPageCount = math.max(1, slices.length);
+        if (_page >= _lastPageCount) {
+          _page = _lastPageCount - 1;
+        }
+        if (_page == _lastPageCount - 1 &&
+            widget.onLastPage != null &&
+            !_lastPageNotified) {
+          _lastPageNotified = true;
+          Future.microtask(widget.onLastPage!);
+        }
+        final slice = slices[_page];
+        final part = widget.parts[slice.partIndex];
+        final comics = part.comics.sublist(slice.start, slice.end);
+
+        return Column(
+          children: [
+            _buildPageSelector(),
+            _buildTitle(part),
+            Expanded(
+              child: GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onHorizontalDragEnd: _handleDragEnd,
+                child: _EInkExploreComicGrid(
+                  comics: comics,
+                  metrics: metrics,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildPageSelector() {
+    return SizedBox(
+      height: 52,
+      child: Row(
+        children: [
+          FilledButton(
+            onPressed: _page > 0 ? _toPreviousPage : null,
+            child: Text("Back".tl),
+          ).fixWidth(84),
+          Expanded(
+            child: Center(
+              child: Text(
+                "${"Page".tl} ${_page + 1} / $_lastPageCount",
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ),
+          FilledButton(
+            onPressed: _page < _lastPageCount - 1 || widget.onLastPage != null
+                ? _toNextPage
+                : null,
+            child: Text("Next".tl),
+          ).fixWidth(84),
+        ],
+      ).paddingHorizontal(16),
+    );
+  }
+
+  Widget _buildTitle(ExplorePagePart part) {
+    return SizedBox(
+      height: 60,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 10, 5, 10),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                part.title.isEmpty ? widget.sourceKey : part.title,
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w500,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            if (part.viewMore != null)
+              TextButton(
+                onPressed: () {
+                  var context = App.mainNavigatorKey!.currentContext!;
+                  part.viewMore!.jump(context);
+                },
+                child: Text("View more".tl),
+              )
+          ],
+        ),
+      ),
+    );
+  }
+
+  List<_EInkExplorePageSlice> _buildSlices(int pageSize) {
+    final slices = <_EInkExplorePageSlice>[];
+    for (var partIndex = 0; partIndex < widget.parts.length; partIndex++) {
+      final comics = widget.parts[partIndex].comics;
+      if (comics.isEmpty) {
+        slices.add(_EInkExplorePageSlice(partIndex, 0, 0));
+        continue;
+      }
+      for (var start = 0; start < comics.length; start += pageSize) {
+        slices.add(
+          _EInkExplorePageSlice(
+            partIndex,
+            start,
+            math.min(start + pageSize, comics.length),
+          ),
+        );
+      }
+    }
+    return slices.isEmpty ? [_EInkExplorePageSlice(0, 0, 0)] : slices;
+  }
+}
+
+class _EInkExplorePageSlice {
+  const _EInkExplorePageSlice(this.partIndex, this.start, this.end);
+
+  final int partIndex;
+  final int start;
+  final int end;
+}
+
+class _EInkExploreGridMetrics {
+  const _EInkExploreGridMetrics({
+    required this.crossAxisCount,
+    required this.childAspectRatio,
+    required this.pageSize,
+  });
+
+  final int crossAxisCount;
+  final double childAspectRatio;
+  final int pageSize;
+
+  factory _EInkExploreGridMetrics.fromSize(BuildContext context, Size size) {
+    final scale = (appdata.settings['comicTileScale'] as num).toDouble();
+    final width = math.max(1.0, size.width);
+    final height = math.max(1.0, size.height - context.padding.bottom);
+    if (appdata.settings['comicDisplayMode'] == 'brief') {
+      final maxCrossAxisExtent = math.max(80.0, 192.0 * scale);
+      final crossAxisCount =
+          math.max(1, (width / maxCrossAxisExtent).ceil());
+      final itemWidth = width / crossAxisCount;
+      final itemHeight = itemWidth / 0.64;
+      final rows = math.max(1, height ~/ itemHeight);
+      return _EInkExploreGridMetrics(
+        crossAxisCount: crossAxisCount,
+        childAspectRatio: itemWidth / itemHeight,
+        pageSize: math.max(1, crossAxisCount * rows),
+      );
+    }
+    final itemHeight = math.max(96.0, 152.0 * scale);
+    final crossAxisCount = math.max(1, width ~/ 360.0);
+    final itemWidth = width / crossAxisCount;
+    final rows = math.max(1, height ~/ itemHeight);
+    return _EInkExploreGridMetrics(
+      crossAxisCount: crossAxisCount,
+      childAspectRatio: itemWidth / itemHeight,
+      pageSize: math.max(1, crossAxisCount * rows),
+    );
+  }
+}
+
+class _EInkExploreComicGrid extends StatelessWidget {
+  const _EInkExploreComicGrid({
+    required this.comics,
+    required this.metrics,
+  });
+
+  final List<Comic> comics;
+
+  final _EInkExploreGridMetrics metrics;
+
+  @override
+  Widget build(BuildContext context) {
+    if (comics.isEmpty) {
+      return Center(
+        child: Text("No search results found".tl),
+      );
+    }
+    return GridView.builder(
+      padding: EdgeInsets.only(bottom: context.padding.bottom),
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: comics.length,
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: metrics.crossAxisCount,
+        childAspectRatio: metrics.childAspectRatio,
+      ),
+      itemBuilder: (context, index) {
+        return ComicTile(comic: comics[index]);
+      },
+    );
   }
 }

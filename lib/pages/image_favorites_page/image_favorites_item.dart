@@ -136,11 +136,16 @@ class _ImageFavoritesItemState extends State<_ImageFavoritesItem> {
             buildTop(),
             SizedBox(
               height: 145,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                itemBuilder: buildItem,
-                itemCount: imageFavorites.length,
-              ),
+              child: appdata.settings['eInkMode'] == true
+                  ? _EInkImageFavoriteStrip(
+                      itemCount: imageFavorites.length,
+                      itemBuilder: buildItem,
+                    )
+                  : ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      itemBuilder: buildItem,
+                      itemCount: imageFavorites.length,
+                    ),
             ).paddingHorizontal(8),
             buildBottom(),
           ],
@@ -283,5 +288,101 @@ class _ImageFavoritesItemState extends State<_ImageFavoritesItem> {
           )
       ],
     ).paddingHorizontal(8).paddingBottom(8);
+  }
+}
+
+class _EInkImageFavoriteStrip extends StatefulWidget {
+  const _EInkImageFavoriteStrip({
+    required this.itemCount,
+    required this.itemBuilder,
+  });
+
+  final int itemCount;
+
+  final Widget Function(BuildContext context, int index) itemBuilder;
+
+  @override
+  State<_EInkImageFavoriteStrip> createState() => _EInkImageFavoriteStripState();
+}
+
+class _EInkImageFavoriteStripState extends State<_EInkImageFavoriteStrip> {
+  int _page = 0;
+
+  void _toNextPage(int pageCount) {
+    if (_page >= pageCount - 1) {
+      return;
+    }
+    setState(() {
+      _page++;
+    });
+  }
+
+  void _toPreviousPage() {
+    if (_page <= 0) {
+      return;
+    }
+    setState(() {
+      _page--;
+    });
+  }
+
+  void _handleDragEnd(DragEndDetails details, int pageCount) {
+    final velocity = details.primaryVelocity ?? 0;
+    if (velocity < -80) {
+      _toNextPage(pageCount);
+    } else if (velocity > 80) {
+      _toPreviousPage();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const itemWidth = 106.0;
+        final itemsPerPage =
+            math.max(1, constraints.maxWidth ~/ itemWidth);
+        final pageCount =
+            math.max(1, (widget.itemCount / itemsPerPage).ceil());
+        if (_page >= pageCount) {
+          _page = pageCount - 1;
+        }
+        final start = _page * itemsPerPage;
+        final end = math.min(start + itemsPerPage, widget.itemCount);
+
+        return GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onHorizontalDragEnd: (details) => _handleDragEnd(details, pageCount),
+          child: Stack(
+            children: [
+              Row(
+                children: [
+                  for (var i = start; i < end; i++)
+                    widget.itemBuilder(context, i),
+                ],
+              ),
+              if (_page > 0)
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: IconButton(
+                    onPressed: _toPreviousPage,
+                    icon: const Icon(Icons.chevron_left),
+                    tooltip: "Back".tl,
+                  ),
+                ),
+              if (_page < pageCount - 1)
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: IconButton(
+                    onPressed: () => _toNextPage(pageCount),
+                    icon: const Icon(Icons.chevron_right),
+                    tooltip: "Next".tl,
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
+    );
   }
 }
