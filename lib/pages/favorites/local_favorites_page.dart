@@ -760,15 +760,23 @@ class _LocalFavoritesPageState extends State<_LocalFavoritesPage> {
           )
         else
           appdata.settings['eInkMode'] == true
-              ? SliverFillRemaining(
-                  hasScrollBody: false,
-                  child: EInkComicGridPager(
-                    comics: visibleComics,
-                    selections: selectedComics,
-                    menuBuilder: buildComicMenu,
-                    onTap: onComicTap,
-                    onLongPressed: onComicLongPressed,
-                  ),
+              ? SliverLayoutBuilder(
+                  builder: (context, constraints) {
+                    final remainingHeight =
+                        max(1.0, constraints.remainingPaintExtent);
+                    return SliverToBoxAdapter(
+                      child: SizedBox(
+                        height: remainingHeight,
+                        child: EInkComicGridPager(
+                          comics: visibleComics,
+                          selections: selectedComics,
+                          menuBuilder: buildComicMenu,
+                          onTap: onComicTap,
+                          onLongPressed: onComicLongPressed,
+                        ),
+                      ),
+                    );
+                  },
                 )
               : SliverGridComics(
                   comics: visibleComics,

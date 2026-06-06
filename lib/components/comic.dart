@@ -954,8 +954,10 @@ class _EInkComicGridMetrics {
 
   factory _EInkComicGridMetrics.fromSize(BuildContext context, Size size) {
     final scale = (appdata.settings['comicTileScale'] as num).toDouble();
-    final width = math.max(1.0, size.width);
-    final height = math.max(1.0, size.height - context.padding.bottom);
+    final rawWidth = size.width.isFinite ? size.width : context.width;
+    final rawHeight = size.height.isFinite ? size.height : context.height;
+    final width = math.max(1.0, rawWidth);
+    final height = math.max(1.0, rawHeight - context.padding.bottom);
 
     if (appdata.settings['comicDisplayMode'] == 'brief') {
       final maxCrossAxisExtent = math.max(80.0, 192.0 * scale);
