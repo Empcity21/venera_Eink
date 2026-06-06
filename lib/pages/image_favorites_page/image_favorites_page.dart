@@ -287,6 +287,9 @@ class _ImageFavoritesPageState extends State<ImageFavoritesPage> {
           delegate: SliverChildBuilderDelegate(
             (context, index) {
               return _ImageFavoritesItem(
+                key: ValueKey(
+                  "${comics[index].sourceKey}-${comics[index].id}",
+                ),
                 imageFavoritesComic: comics[index],
                 selectedImageFavorites: selectedImageFavorites,
                 addSelected: addSelected,
@@ -635,6 +638,7 @@ class _EInkImageFavoritesPagerState extends State<_EInkImageFavoritesPager> {
                       SizedBox(
                         height: _kItemHeight,
                         child: _ImageFavoritesItem(
+                          key: ValueKey("${comic.sourceKey}-${comic.id}"),
                           imageFavoritesComic: comic,
                           selectedImageFavorites:
                               widget.selectedImageFavorites,

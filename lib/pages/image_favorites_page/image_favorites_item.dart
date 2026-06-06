@@ -2,6 +2,7 @@ part of 'image_favorites_page.dart';
 
 class _ImageFavoritesItem extends StatefulWidget {
   const _ImageFavoritesItem({
+    super.key,
     required this.imageFavoritesComic,
     required this.selectedImageFavorites,
     required this.addSelected,
@@ -20,7 +21,8 @@ class _ImageFavoritesItem extends StatefulWidget {
 }
 
 class _ImageFavoritesItemState extends State<_ImageFavoritesItem> {
-  late final imageFavorites = widget.imageFavoritesComic.images.toList();
+  List<ImageFavorite> get imageFavorites =>
+      widget.imageFavoritesComic.images.toList();
 
   void goComicInfo(ImageFavoritesComic comic) {
     App.mainNavigatorKey?.currentContext?.to(() => ComicPage(
@@ -314,6 +316,14 @@ class _EInkImageFavoriteStrip extends StatefulWidget {
 
 class _EInkImageFavoriteStripState extends State<_EInkImageFavoriteStrip> {
   int _page = 0;
+
+  @override
+  void didUpdateWidget(covariant _EInkImageFavoriteStrip oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.itemCount != widget.itemCount) {
+      _page = 0;
+    }
+  }
 
   void _toNextPage(int pageCount) {
     if (_page >= pageCount - 1) {
