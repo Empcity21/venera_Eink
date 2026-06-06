@@ -353,9 +353,11 @@ class _SliverSearchResultState extends State<_SliverSearchResult>
   double get _comicHeight =>
       appdata.settings['eInkMode'] == true ? 162.0 : _kComicHeight;
 
-  get _comicWidth => _comicHeight * 0.7;
+  static const _kComicWidth = 98.0;
 
   static const _kLeftPadding = 16.0;
+
+  static const _kComicSlotWidth = _kComicWidth + _kLeftPadding;
 
   List<Comic>? comics;
 
@@ -464,7 +466,7 @@ class _SliverSearchResultState extends State<_SliverSearchResult>
   Widget buildPlaceHolder() {
     return Container(
       height: _comicHeight,
-      width: _comicWidth,
+      width: _kComicWidth,
       margin: const EdgeInsets.only(left: _kLeftPadding),
       decoration: BoxDecoration(
         color: context.colorScheme.surfaceContainerLow,
@@ -481,8 +483,7 @@ class _SliverSearchResultState extends State<_SliverSearchResult>
 
   Widget buildPlaceholders({required bool shimmer}) {
     final content = LayoutBuilder(builder: (context, constrains) {
-      var itemWidth = _comicWidth + _kLeftPadding;
-      var items = (constrains.maxWidth / itemWidth).ceil();
+      var items = (constrains.maxWidth / _kComicSlotWidth).ceil();
       return Stack(
         children: [
           Positioned(
@@ -509,10 +510,9 @@ class _SliverSearchResultState extends State<_SliverSearchResult>
         const labelWidth = 48.0;
         final availableWidth =
             math.max(1.0, constrains.maxWidth - controlWidth * 2 - labelWidth);
-        var itemWidth = _comicWidth + _kLeftPadding;
         var items = math.max(
           1,
-          (availableWidth / itemWidth).floor(),
+          (availableWidth / _kComicSlotWidth).floor(),
         );
         final pageCount = math.max(1, (comics!.length / items).ceil());
         if (_comicPage >= pageCount) {
