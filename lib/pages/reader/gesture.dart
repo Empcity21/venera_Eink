@@ -304,7 +304,7 @@ class _ReaderGestureDetectorState extends AutomaticGlobalState<_ReaderGestureDet
           icon: Icons.exit_to_app,
           text: "Exit".tl,
           onClick: () {
-            context.pop();
+            context.reader.exitReader();
           },
         ),
         if (App.isDesktop && !reader.isLoading)

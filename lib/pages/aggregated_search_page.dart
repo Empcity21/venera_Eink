@@ -6,6 +6,7 @@ import "package:venera/components/components.dart";
 import "package:venera/foundation/app.dart";
 import "package:venera/foundation/appdata.dart";
 import "package:venera/foundation/comic_source/comic_source.dart";
+import "package:venera/foundation/res.dart";
 import "package:venera/pages/search_result_page.dart";
 import "package:venera/utils/translations.dart";
 import "package:venera/utils/volume.dart";
@@ -31,6 +32,8 @@ class _AggregatedSearchPageState extends State<AggregatedSearchPage> {
   int _lastSourcePageCount = 1;
 
   final _resultCache = <String, _AggregatedSearchResultCache>{};
+
+  final _preloadingKeys = <String>{};
 
   static const _kSourceRowHeight = 264.0;
 
@@ -59,6 +62,7 @@ class _AggregatedSearchPageState extends State<AggregatedSearchPage> {
           _keyword = text;
           _sourcePage = 0;
           _resultCache.clear();
+          _preloadingKeys.clear();
         });
       },
     );
@@ -132,6 +136,50 @@ class _AggregatedSearchPageState extends State<AggregatedSearchPage> {
     });
   }
 
+  String _cacheKeyFor(ComicSource source) => "${source.key}\n$_keyword";
+
+  void _preloadSourceResults(Iterable<ComicSource> sources) {
+    if (!_eInkMode) {
+      return;
+    }
+    for (final source in sources) {
+      final cacheKey = _cacheKeyFor(source);
+      if (_resultCache.containsKey(cacheKey) ||
+          _preloadingKeys.contains(cacheKey)) {
+        continue;
+      }
+      _preloadingKeys.add(cacheKey);
+      _preloadSourceResult(source, cacheKey);
+    }
+  }
+
+  void _preloadSourceResult(ComicSource source, String cacheKey) async {
+    try {
+      final data = source.searchPageData!;
+      var options =
+          (data.searchOptions ?? []).map((e) => e.defaultValue).toList();
+      Res<List<Comic>> res;
+      if (data.loadPage != null) {
+        res = await data.loadPage!(_keyword, 1, options);
+      } else {
+        res = await data.loadNext!(_keyword, null, options);
+      }
+      if (res.success) {
+        _resultCache[cacheKey] = _AggregatedSearchResultCache(
+          comics: res.data,
+          error: null,
+        );
+      } else {
+        _resultCache[cacheKey] = _AggregatedSearchResultCache(
+          comics: null,
+          error: res.errorMessage ?? "Unknown error".tl,
+        );
+      }
+    } finally {
+      _preloadingKeys.remove(cacheKey);
+    }
+  }
+
   void _handleEInkDragEnd(DragEndDetails details) {
     final velocity = details.primaryVelocity ?? 0;
     if (velocity < -80) {
@@ -191,6 +239,10 @@ class _AggregatedSearchPageState extends State<AggregatedSearchPage> {
               final pageSources = start >= sources.length
                   ? const <ComicSource>[]
                   : sources.sublist(start, end);
+              final preloadEnd = math.min(end + rowsPerPage, sources.length);
+              if (end < preloadEnd) {
+                _preloadSourceResults(sources.sublist(end, preloadEnd));
+              }
 
               return Column(
                 children: [

@@ -192,7 +192,7 @@ class _ReaderScaffoldState extends State<_ReaderScaffold> {
           child: Row(
             children: [
               const SizedBox(width: 8),
-              const BackButton(),
+              BackButton(onPressed: context.reader.exitReader),
               const SizedBox(width: 8),
               Expanded(
                 child: epName == null ? Text(

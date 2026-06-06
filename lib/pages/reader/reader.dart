@@ -110,6 +110,8 @@ class Reader extends StatefulWidget {
 
 class _ReaderState extends State<Reader>
     with _ReaderLocation, _ReaderWindow, _VolumeListener, _ImagePerPageHandler {
+  bool _isExitingReader = false;
+
   @override
   void update() {
     setState(() {});
@@ -288,24 +290,49 @@ class _ReaderState extends State<Reader>
   @override
   Widget build(BuildContext context) {
     _checkImagesPerPageChange();
-    return KeyboardListener(
-      focusNode: focusNode,
-      autofocus: true,
-      onKeyEvent: onKeyEvent,
-      child: Overlay(
-        initialEntries: [
-          OverlayEntry(
-            builder: (context) {
-              return _ReaderScaffold(
-                child: _ReaderGestureDetector(
-                  child: _ReaderImages(key: Key(chapter.toString())),
-                ),
-              );
-            },
-          ),
-        ],
+    return PopScope(
+      canPop: _isExitingReader,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) {
+          exitReader();
+        }
+      },
+      child: KeyboardListener(
+        focusNode: focusNode,
+        autofocus: true,
+        onKeyEvent: onKeyEvent,
+        child: Overlay(
+          initialEntries: [
+            OverlayEntry(
+              builder: (context) {
+                return _ReaderScaffold(
+                  child: _ReaderGestureDetector(
+                    child: _ReaderImages(key: Key(chapter.toString())),
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
       ),
     );
+  }
+
+  Future<void> exitReader() async {
+    if (_isExitingReader) {
+      return;
+    }
+    _isExitingReader = true;
+    stopVolumeEvent();
+    await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    if (!mounted) {
+      return;
+    }
+    setState(() {});
+    await Future<void>.delayed(const Duration(milliseconds: 80));
+    if (mounted && Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+    }
   }
 
   void onKeyEvent(KeyEvent event) {
@@ -558,6 +585,8 @@ abstract mixin class _VolumeListener {
 
   VolumeListener? volumeListener;
 
+  bool _isPageTurnRegistrySuspended = false;
+
   void onDown() {
     if (!toNextPage()) {
       toNextChapter();
@@ -575,6 +604,10 @@ abstract mixin class _VolumeListener {
       // Currently only support Android
       return;
     }
+    if (!_isPageTurnRegistrySuspended) {
+      VolumePageTurnRegistry.suspend();
+      _isPageTurnRegistrySuspended = true;
+    }
     if (volumeListener != null) {
       volumeListener?.cancel();
     }
@@ -585,6 +618,10 @@ abstract mixin class _VolumeListener {
     if (volumeListener != null) {
       volumeListener?.cancel();
       volumeListener = null;
+    }
+    if (_isPageTurnRegistrySuspended) {
+      VolumePageTurnRegistry.resume();
+      _isPageTurnRegistrySuspended = false;
     }
   }
 }

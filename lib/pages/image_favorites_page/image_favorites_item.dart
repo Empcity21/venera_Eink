@@ -175,43 +175,50 @@ class _ImageFavoritesItemState extends State<_ImageFavoritesItem> {
         goPhotoView(image);
       },
       borderRadius: BorderRadius.circular(8),
-      child: Container(
-        width: 98,
-        height: 128,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(8),
-          color: isSelected
-              ? Theme.of(context).colorScheme.primaryContainer
-              : null,
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 4),
-        child: Column(
-          children: [
-            Container(
-              height: 128,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(8),
-                color: Theme.of(context).colorScheme.secondaryContainer,
-              ),
-              clipBehavior: Clip.antiAlias,
-              child: Hero(
-                tag: "${image.sourceKey}${image.ep}${image.page}",
-                child: AnimatedImage(
-                  image: ImageFavoritesProvider(image),
-                  width: 96,
-                  height: 128,
-                  fit: BoxFit.cover,
-                  filterQuality: FilterQuality.medium,
+      child: SizedBox(
+        width: 106,
+        height: 145,
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(8),
+            color: isSelected
+                ? Theme.of(context).colorScheme.primaryContainer
+                : null,
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: Column(
+            children: [
+              Expanded(
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(8),
+                    color: Theme.of(context).colorScheme.secondaryContainer,
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: Hero(
+                    tag: "${image.sourceKey}${image.ep}${image.page}",
+                    child: AnimatedImage(
+                      image: ImageFavoritesProvider(image),
+                      width: double.infinity,
+                      height: double.infinity,
+                      fit: BoxFit.cover,
+                      filterQuality: FilterQuality.medium,
+                    ),
+                  ),
                 ),
               ),
-            ),
-            Text(
-              pageText,
-              style: ts.s10,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            )
-          ],
+              const SizedBox(height: 2),
+              SizedBox(
+                height: 15,
+                child: Text(
+                  pageText,
+                  style: ts.s10,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              )
+            ],
+          ),
         ),
       ),
     ).paddingHorizontal(4);

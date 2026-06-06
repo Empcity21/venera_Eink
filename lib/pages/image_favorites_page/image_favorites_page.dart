@@ -492,7 +492,7 @@ class _EInkImageFavoritesPagerState extends State<_EInkImageFavoritesPager> {
 
   int _lastPageCount = 1;
 
-  static const _kItemHeight = 236.0;
+  static const _kItemHeight = 260.0;
 
   bool get _canHandleVolumeKey {
     if (appdata.settings['eInkMode'] != true || !App.isAndroid) {

@@ -1103,6 +1103,8 @@ class _EInkComicGridPagerState extends State<EInkComicGridPager> {
 
   static int _nextHeroID = 0;
 
+  String? _lastPrecacheKey;
+
   @override
   void initState() {
     super.initState();
@@ -1202,6 +1204,28 @@ class _EInkComicGridPagerState extends State<EInkComicGridPager> {
     }
   }
 
+  void _precacheComics(List<Comic> comics, int start, int end) {
+    if (start >= end) {
+      return;
+    }
+    final key = "$start-$end-${comics.length}";
+    if (_lastPrecacheKey == key) {
+      return;
+    }
+    _lastPrecacheKey = key;
+    Future.microtask(() {
+      if (!mounted) {
+        return;
+      }
+      for (final comic in comics.sublist(start, end)) {
+        final image = _findImageProvider(comic);
+        if (image != null) {
+          precacheImage(image, context);
+        }
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
@@ -1227,6 +1251,11 @@ class _EInkComicGridPagerState extends State<EInkComicGridPager> {
         final screenHeroIDs = start >= _heroIDs.length
             ? <int>[]
             : _heroIDs.sublist(start, math.min(end, _heroIDs.length));
+        _precacheComics(
+          comics,
+          end,
+          math.min(end + metrics.pageSize, comics.length),
+        );
 
         return Column(
           children: [
@@ -1328,6 +1357,8 @@ class ComicListState extends State<ComicList> {
   int _lastScreenPageCount = 1;
 
   int _lastPageSize = 1;
+
+  String? _lastEInkPrecacheKey;
 
   String? _error;
 
@@ -1588,7 +1619,7 @@ class ComicListState extends State<ComicList> {
     );
   }
 
-  Future<void> _loadPage(int page) async {
+  Future<void> _loadPage(int page, {bool isPreload = false}) async {
     if (widget.loadPage == null && widget.loadNext == null) {
       _error = "loadPage and loadNext can't be null at the same time";
       Future.microtask(() {
@@ -1618,9 +1649,11 @@ class ComicListState extends State<ComicList> {
             });
           }
         } else {
-          setState(() {
-            _error = res.errorMessage ?? "Unknown error".tl;
-          });
+          if (!isPreload) {
+            setState(() {
+              _error = res.errorMessage ?? "Unknown error".tl;
+            });
+          }
         }
       } else {
         try {
@@ -1631,7 +1664,7 @@ class ComicListState extends State<ComicList> {
             setState(() {});
           }
         } catch (e) {
-          if (mounted) {
+          if (mounted && !isPreload) {
             setState(() {
               _error = e.toString();
             });
@@ -1642,6 +1675,42 @@ class ComicListState extends State<ComicList> {
       _loading[page] = false;
       storeState();
     }
+  }
+
+  void _preloadNextPage() {
+    if (!_eInkMode) {
+      return;
+    }
+    final nextPage = _page + 1;
+    if (_maxPage != null && nextPage > _maxPage!) {
+      return;
+    }
+    if (_data[nextPage] != null || _loading[nextPage] == true) {
+      return;
+    }
+    _loadPage(nextPage, isPreload: true);
+  }
+
+  void _precacheEInkComics(List<Comic> comics, int start, int end) {
+    if (start >= end) {
+      return;
+    }
+    final key = "$_page-$start-$end-${comics.length}";
+    if (_lastEInkPrecacheKey == key) {
+      return;
+    }
+    _lastEInkPrecacheKey = key;
+    Future.microtask(() {
+      if (!mounted) {
+        return;
+      }
+      for (final comic in comics.sublist(start, end)) {
+        final image = _findImageProvider(comic);
+        if (image != null) {
+          precacheImage(image, context);
+        }
+      }
+    });
   }
 
   Future<void> _fetchNext() async {
@@ -1759,6 +1828,7 @@ class ComicListState extends State<ComicList> {
       _loadPage(_page);
       return _buildStaticLoading(widget.errorLeading);
     }
+    _preloadNextPage();
     return Column(
       children: [
         if (widget.errorLeading != null) widget.errorLeading!,
@@ -1785,6 +1855,11 @@ class ComicListState extends State<ComicList> {
               final end = math.min(start + metrics.pageSize, comics.length);
               final screenComics =
                   start >= comics.length ? <Comic>[] : comics.sublist(start, end);
+              _precacheEInkComics(
+                comics,
+                end,
+                math.min(end + metrics.pageSize, comics.length),
+              );
 
               return Column(
                 children: [

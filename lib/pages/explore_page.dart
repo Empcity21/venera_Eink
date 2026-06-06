@@ -781,7 +781,7 @@ class _EInkExplorePartsPagerState extends State<_EInkExplorePartsPager> {
         if (_page >= _lastPageCount) {
           _page = _lastPageCount - 1;
         }
-        if (_page == _lastPageCount - 1 &&
+        if (_page >= _lastPageCount - 2 &&
             widget.onLastPage != null &&
             !_lastPageNotified) {
           _lastPageNotified = true;

@@ -42,6 +42,8 @@ class VolumePageTurnRegistry {
 
   static bool _listening = false;
 
+  static int _suspendCount = 0;
+
   static void register(
     Object owner, {
     required bool Function() canHandle,
@@ -57,7 +59,7 @@ class VolumePageTurnRegistry {
         onDown: onDown,
       ),
     );
-    if (!_listening) {
+    if (!_listening && _suspendCount == 0) {
       _listener.listen();
       _listening = true;
     }
@@ -68,6 +70,24 @@ class VolumePageTurnRegistry {
     if (_entries.isEmpty && _listening) {
       _listener.cancel();
       _listening = false;
+    }
+  }
+
+  static void suspend() {
+    _suspendCount++;
+    if (_listening) {
+      _listener.cancel();
+      _listening = false;
+    }
+  }
+
+  static void resume() {
+    if (_suspendCount > 0) {
+      _suspendCount--;
+    }
+    if (_suspendCount == 0 && _entries.isNotEmpty && !_listening) {
+      _listener.listen();
+      _listening = true;
     }
   }
 
