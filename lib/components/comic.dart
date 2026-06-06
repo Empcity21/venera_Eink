@@ -1157,7 +1157,7 @@ class _EInkComicGridPagerState extends State<EInkComicGridPager> {
         appdata.settings['eInkMode'] != true) {
       return false;
     }
-    final route = ModalRoute.maybeOf(context);
+    final route = ModalRoute.of(context);
     return route?.isCurrent ?? true;
   }
 
@@ -1424,7 +1424,7 @@ class ComicListState extends State<ComicList> {
     if (appdata.settings['enableTurnPageByVolumeKey'] != true) {
       return false;
     }
-    final route = ModalRoute.maybeOf(context);
+    final route = ModalRoute.of(context);
     return route?.isCurrent ?? true;
   }
 
