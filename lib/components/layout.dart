@@ -181,7 +181,9 @@ class SliverAnimatedVisibility extends StatelessWidget {
 
     return SliverToBoxAdapter(
       child: AnimatedSize(
-        duration: const Duration(milliseconds: 200),
+        duration: appdata.settings['eInkMode'] == true
+            ? Duration.zero
+            : const Duration(milliseconds: 200),
         curve: Curves.easeInOut,
         alignment: Alignment.topCenter,
         child: child,

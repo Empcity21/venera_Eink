@@ -21,6 +21,13 @@ class _ExploreSettingsState extends State<ExploreSettings> {
             "brief": "Brief".tl,
           },
         ).toSliver(),
+        _SwitchSetting(
+          title: "E-ink mode".tl,
+          settingKey: "eInkMode",
+          onChanged: () {
+            App.forceRebuild();
+          },
+        ).toSliver(),
         _SliderSetting(
           title: "Size of comic tile".tl,
           settingsIndex: "comicTileScale",

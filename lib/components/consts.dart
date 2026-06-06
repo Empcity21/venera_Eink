@@ -1,3 +1,6 @@
 part of 'components.dart';
 
-const _fastAnimationDuration = Duration(milliseconds: 160);
+Duration get _fastAnimationDuration =>
+    appdata.settings['eInkMode'] == true
+        ? Duration.zero
+        : const Duration(milliseconds: 160);

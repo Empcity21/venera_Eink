@@ -496,9 +496,15 @@ class ComicTile extends StatelessWidget {
                   }
                   appdata.saveData();
                   context.showMessage(message: 'Blocked'.tl);
-                  comicTileContext
-                      .findAncestorStateOfType<_SliverGridComicsState>()!
-                      .update();
+                  final sliverGridState = comicTileContext
+                      .findAncestorStateOfType<_SliverGridComicsState>();
+                  final comicListState =
+                      comicTileContext.findAncestorStateOfType<ComicListState>();
+                  final eInkGridState = comicTileContext
+                      .findAncestorStateOfType<_EInkComicGridPagerState>();
+                  sliverGridState?.update();
+                  comicListState?._onListChanged();
+                  eInkGridState?._update();
                 },
                 child: Text('Block'.tl),
               ),
@@ -819,6 +825,20 @@ class _SliverGridComicsState extends State<SliverGridComics> {
 
   @override
   Widget build(BuildContext context) {
+    if (appdata.settings['eInkMode'] == true) {
+      return SliverFillRemaining(
+        hasScrollBody: false,
+        child: EInkComicGridPager(
+          comics: comics,
+          selections: widget.selections,
+          onLastItemBuild: widget.onLastItemBuild,
+          badgeBuilder: widget.badgeBuilder,
+          menuBuilder: widget.menuBuilder,
+          onTap: widget.onTap,
+          onLongPressed: widget.onLongPressed,
+        ),
+      );
+    }
     return _SliverGridComics(
       comics: comics,
       heroIDs: heroIDs,
@@ -933,6 +953,347 @@ String? isBlocked(Comic item) {
   return null;
 }
 
+class _EInkComicGridMetrics {
+  const _EInkComicGridMetrics({
+    required this.crossAxisCount,
+    required this.childAspectRatio,
+    required this.pageSize,
+  });
+
+  final int crossAxisCount;
+
+  final double childAspectRatio;
+
+  final int pageSize;
+
+  factory _EInkComicGridMetrics.fromSize(BuildContext context, Size size) {
+    final scale = (appdata.settings['comicTileScale'] as num).toDouble();
+    final width = math.max(1.0, size.width);
+    final height = math.max(1.0, size.height - context.padding.bottom);
+
+    if (appdata.settings['comicDisplayMode'] == 'brief') {
+      final maxCrossAxisExtent = math.max(80.0, 192.0 * scale);
+      final crossAxisCount =
+          math.max(1, (width / maxCrossAxisExtent).ceil());
+      final itemWidth = width / crossAxisCount;
+      final itemHeight = itemWidth / 0.64;
+      final rows = math.max(1, height ~/ itemHeight);
+      return _EInkComicGridMetrics(
+        crossAxisCount: crossAxisCount,
+        childAspectRatio: itemWidth / itemHeight,
+        pageSize: math.max(1, crossAxisCount * rows),
+      );
+    }
+
+    final itemHeight = math.max(96.0, 152.0 * scale);
+    final crossAxisCount = math.max(1, width ~/ 360.0);
+    final itemWidth = width / crossAxisCount;
+    final rows = math.max(1, height ~/ itemHeight);
+    return _EInkComicGridMetrics(
+      crossAxisCount: crossAxisCount,
+      childAspectRatio: itemWidth / itemHeight,
+      pageSize: math.max(1, crossAxisCount * rows),
+    );
+  }
+}
+
+class _EInkComicGrid extends StatelessWidget {
+  const _EInkComicGrid({
+    required this.comics,
+    required this.metrics,
+    this.selections,
+    this.badgeBuilder,
+    this.menuBuilder,
+    this.onTap,
+    this.onLongPressed,
+    this.heroIDs,
+  });
+
+  final List<Comic> comics;
+
+  final _EInkComicGridMetrics metrics;
+
+  final Map<Comic, bool>? selections;
+
+  final String? Function(Comic)? badgeBuilder;
+
+  final List<MenuEntry> Function(Comic)? menuBuilder;
+
+  final void Function(Comic, int heroID)? onTap;
+
+  final void Function(Comic, int heroID)? onLongPressed;
+
+  final List<int>? heroIDs;
+
+  @override
+  Widget build(BuildContext context) {
+    if (comics.isEmpty) {
+      return Center(
+        child: Text("No search results found".tl),
+      );
+    }
+    return GridView.builder(
+      padding: EdgeInsets.only(bottom: context.padding.bottom),
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: comics.length,
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: metrics.crossAxisCount,
+        childAspectRatio: metrics.childAspectRatio,
+      ),
+      itemBuilder: (context, index) {
+        final comic = comics[index];
+        final heroID = heroIDs?[index] ?? 0;
+        final isSelected =
+            selections == null ? false : selections![comic] ?? false;
+        final comicTile = ComicTile(
+          comic: comics[index],
+          badge: badgeBuilder?.call(comic),
+          menuOptions: menuBuilder?.call(comic),
+          onTap: onTap == null ? null : () => onTap!(comic, heroID),
+          onLongPressed: onLongPressed == null
+              ? null
+              : () => onLongPressed!(comic, heroID),
+        );
+        if (selections == null) {
+          return comicTile;
+        }
+        return Container(
+          key: ValueKey(comic.id),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? Theme.of(context)
+                    .colorScheme
+                    .secondaryContainer
+                    .toOpacity(0.72)
+                : null,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          margin: const EdgeInsets.all(4),
+          child: comicTile,
+        );
+      },
+    );
+  }
+}
+
+class EInkComicGridPager extends StatefulWidget {
+  const EInkComicGridPager({
+    super.key,
+    required this.comics,
+    this.selections,
+    this.onLastItemBuild,
+    this.badgeBuilder,
+    this.menuBuilder,
+    this.onTap,
+    this.onLongPressed,
+  });
+
+  final List<Comic> comics;
+
+  final Map<Comic, bool>? selections;
+
+  final void Function()? onLastItemBuild;
+
+  final String? Function(Comic)? badgeBuilder;
+
+  final List<MenuEntry> Function(Comic)? menuBuilder;
+
+  final void Function(Comic, int heroID)? onTap;
+
+  final void Function(Comic, int heroID)? onLongPressed;
+
+  @override
+  State<EInkComicGridPager> createState() => _EInkComicGridPagerState();
+}
+
+class _EInkComicGridPagerState extends State<EInkComicGridPager> {
+  int _screenPage = 0;
+
+  int _lastScreenPageCount = 1;
+
+  VolumeListener? _volumeListener;
+
+  List<int> _heroIDs = [];
+
+  static int _nextHeroID = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _generateHeroIDs();
+    HistoryManager().addListener(_update);
+    appdata.settings.addListener(_update);
+    _configureVolumeListener();
+  }
+
+  @override
+  void didUpdateWidget(covariant EInkComicGridPager oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!widget.comics.isEqualTo(oldWidget.comics)) {
+      _screenPage = 0;
+      _generateHeroIDs();
+    }
+  }
+
+  @override
+  void dispose() {
+    _volumeListener?.cancel();
+    HistoryManager().removeListener(_update);
+    appdata.settings.removeListener(_update);
+    super.dispose();
+  }
+
+  void _generateHeroIDs() {
+    _heroIDs = List.generate(widget.comics.length, (_) => _nextHeroID++);
+  }
+
+  List<Comic> get _visibleComics => widget.comics
+      .where((comic) => isBlocked(comic) == null)
+      .toList();
+
+  bool get _canHandleVolumeKey {
+    if (!App.isAndroid ||
+        appdata.settings['enableTurnPageByVolumeKey'] != true ||
+        appdata.settings['eInkMode'] != true) {
+      return false;
+    }
+    final route = ModalRoute.maybeOf(context);
+    return route?.isCurrent ?? true;
+  }
+
+  void _configureVolumeListener() {
+    final shouldListen = App.isAndroid &&
+        appdata.settings['eInkMode'] == true &&
+        appdata.settings['enableTurnPageByVolumeKey'] == true;
+    if (!shouldListen) {
+      _volumeListener?.cancel();
+      _volumeListener = null;
+      return;
+    }
+    _volumeListener ??= VolumeListener(
+      onDown: () {
+        if (_canHandleVolumeKey) {
+          _toNextScreenPage();
+        }
+      },
+      onUp: () {
+        if (_canHandleVolumeKey) {
+          _toPreviousScreenPage();
+        }
+      },
+    )..listen();
+  }
+
+  void _update() {
+    _configureVolumeListener();
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  void _toNextScreenPage() {
+    if (_screenPage < _lastScreenPageCount - 1) {
+      setState(() {
+        _screenPage++;
+      });
+    }
+  }
+
+  void _toPreviousScreenPage() {
+    if (_screenPage > 0) {
+      setState(() {
+        _screenPage--;
+      });
+    }
+  }
+
+  void _handleDragEnd(DragEndDetails details) {
+    final velocity = details.primaryVelocity ?? 0;
+    if (velocity < -80) {
+      _toNextScreenPage();
+    } else if (velocity > 80) {
+      _toPreviousScreenPage();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final metrics = _EInkComicGridMetrics.fromSize(
+          context,
+          Size(constraints.maxWidth, constraints.maxHeight - 52),
+        );
+        final comics = _visibleComics;
+        final screenPageCount =
+            math.max(1, (comics.length / metrics.pageSize).ceil());
+        _lastScreenPageCount = screenPageCount;
+        if (_screenPage >= screenPageCount) {
+          _screenPage = screenPageCount - 1;
+        }
+        if (_screenPage == screenPageCount - 1) {
+          widget.onLastItemBuild?.call();
+        }
+        final start = _screenPage * metrics.pageSize;
+        final end = math.min(start + metrics.pageSize, comics.length);
+        final screenComics =
+            start >= comics.length ? <Comic>[] : comics.sublist(start, end);
+        final screenHeroIDs = start >= _heroIDs.length
+            ? <int>[]
+            : _heroIDs.sublist(start, math.min(end, _heroIDs.length));
+
+        return Column(
+          children: [
+            SizedBox(
+              height: 52,
+              child: Row(
+                children: [
+                  FilledButton(
+                    onPressed:
+                        _screenPage > 0 ? _toPreviousScreenPage : null,
+                    child: Text("Back".tl),
+                  ).fixWidth(84),
+                  Expanded(
+                    child: Center(
+                      child: Text(
+                        "${"Page".tl} ${_screenPage + 1} / $screenPageCount",
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ),
+                  FilledButton(
+                    onPressed: _screenPage < screenPageCount - 1
+                        ? _toNextScreenPage
+                        : null,
+                    child: Text("Next".tl),
+                  ).fixWidth(84),
+                ],
+              ).paddingHorizontal(16),
+            ),
+            Expanded(
+              child: GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onHorizontalDragEnd: _handleDragEnd,
+                child: _EInkComicGrid(
+                  comics: screenComics,
+                  metrics: metrics,
+                  selections: widget.selections,
+                  badgeBuilder: widget.badgeBuilder,
+                  menuBuilder: widget.menuBuilder,
+                  onTap: widget.onTap,
+                  onLongPressed: widget.onLongPressed,
+                  heroIDs: screenHeroIDs,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
 class ComicList extends StatefulWidget {
   const ComicList({
     super.key,
@@ -976,11 +1337,19 @@ class ComicListState extends State<ComicList> {
 
   int _page = 1;
 
+  int _screenPage = 0;
+
+  int _lastScreenPageCount = 1;
+
+  int _lastPageSize = 1;
+
   String? _error;
 
   final Map<int, bool> _loading = {};
 
   String? _nextUrl;
+
+  VolumeListener? _volumeListener;
 
   late bool enablePageStorage = widget.enablePageStorage;
 
@@ -988,6 +1357,7 @@ class ComicListState extends State<ComicList> {
         'maxPage': _maxPage,
         'data': _data,
         'page': _page,
+        'screenPage': _screenPage,
         'error': _error,
         'loading': _loading,
         'nextUrl': _nextUrl,
@@ -1001,6 +1371,7 @@ class ComicListState extends State<ComicList> {
     _data.clear();
     _data.addAll(state['data']);
     _page = state['page'];
+    _screenPage = state['screenPage'] ?? 0;
     _error = state['error'];
     _loading.clear();
     _loading.addAll(state['loading']);
@@ -1013,9 +1384,78 @@ class ComicListState extends State<ComicList> {
     }
   }
 
+  bool get _eInkMode => appdata.settings['eInkMode'] == true;
+
+  @override
+  void initState() {
+    super.initState();
+    HistoryManager().addListener(_onListChanged);
+    appdata.settings.addListener(_onSettingsChanged);
+    _configureVolumeListener();
+  }
+
+  @override
+  void dispose() {
+    _volumeListener?.cancel();
+    HistoryManager().removeListener(_onListChanged);
+    appdata.settings.removeListener(_onSettingsChanged);
+    super.dispose();
+  }
+
+  void _onListChanged() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  void _onSettingsChanged() {
+    _configureVolumeListener();
+    if (mounted) {
+      setState(() {
+        _screenPage = 0;
+      });
+    }
+  }
+
+  bool get _canHandleVolumeKey {
+    if (!_eInkMode || !App.isAndroid) {
+      return false;
+    }
+    if (appdata.settings['enableTurnPageByVolumeKey'] != true) {
+      return false;
+    }
+    final route = ModalRoute.maybeOf(context);
+    return route?.isCurrent ?? true;
+  }
+
+  void _configureVolumeListener() {
+    final shouldListen =
+        _eInkMode &&
+        App.isAndroid &&
+        appdata.settings['enableTurnPageByVolumeKey'] == true;
+    if (!shouldListen) {
+      _volumeListener?.cancel();
+      _volumeListener = null;
+      return;
+    }
+    _volumeListener ??= VolumeListener(
+      onDown: () {
+        if (_canHandleVolumeKey) {
+          _toNextScreenPage();
+        }
+      },
+      onUp: () {
+        if (_canHandleVolumeKey) {
+          _toPreviousScreenPage();
+        }
+      },
+    )..listen();
+  }
+
   void refresh() {
     _data.clear();
     _page = 1;
+    _screenPage = 0;
     _maxPage = null;
     _error = null;
     _nextUrl = null;
@@ -1205,10 +1645,190 @@ class ComicListState extends State<ComicList> {
     }
   }
 
+  List<Comic> _visibleComics(int page) {
+    return (_data[page] ?? const <Comic>[])
+        .where((comic) => isBlocked(comic) == null)
+        .toList();
+  }
+
+  int _lastScreenPageOf(int page) {
+    final comics = _visibleComics(page);
+    final pageCount = math.max(1, (comics.length / _lastPageSize).ceil());
+    return pageCount - 1;
+  }
+
+  bool get _canGoToNextNetworkPage => _page < (_maxPage ?? (_page + 1));
+
+  bool get _canGoToPreviousNetworkPage => _page > 1;
+
+  void _toNextScreenPage() {
+    if (!mounted) return;
+    if (_screenPage < _lastScreenPageCount - 1) {
+      setState(() {
+        _screenPage++;
+      });
+      storeState();
+    } else if (_canGoToNextNetworkPage) {
+      setState(() {
+        _error = null;
+        _page++;
+        _screenPage = 0;
+      });
+      storeState();
+    }
+  }
+
+  void _toPreviousScreenPage() {
+    if (!mounted) return;
+    if (_screenPage > 0) {
+      setState(() {
+        _screenPage--;
+      });
+      storeState();
+    } else if (_canGoToPreviousNetworkPage) {
+      setState(() {
+        _error = null;
+        _page--;
+        _screenPage = _lastScreenPageOf(_page);
+      });
+      storeState();
+    }
+  }
+
+  void _handleEInkDragEnd(DragEndDetails details) {
+    final velocity = details.primaryVelocity ?? 0;
+    if (velocity < -80) {
+      _toNextScreenPage();
+    } else if (velocity > 80) {
+      _toPreviousScreenPage();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     var type = appdata.settings['comicListDisplayMode'];
+    if (_eInkMode) {
+      return buildEInkPagingMode();
+    }
     return type == 'paging' ? buildPagingMode() : buildContinuousMode();
+  }
+
+  Widget _buildStaticLoading([Widget? leading]) {
+    return Column(
+      children: [
+        if (leading != null) leading,
+        Expanded(
+          child: Center(
+            child: Text("Loading".tl),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget buildEInkPagingMode() {
+    if (_error != null) {
+      return Column(
+        children: [
+          if (widget.errorLeading != null) widget.errorLeading!,
+          _buildEInkPageSelector(1),
+          Expanded(
+            child: NetworkError(
+              withAppbar: false,
+              message: _error!,
+              retry: () {
+                setState(() {
+                  _error = null;
+                });
+              },
+            ),
+          ),
+        ],
+      );
+    }
+    if (_data[_page] == null) {
+      _loadPage(_page);
+      return _buildStaticLoading(widget.errorLeading);
+    }
+    return Column(
+      children: [
+        if (widget.errorLeading != null) widget.errorLeading!,
+        Expanded(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              const selectorHeight = 52.0;
+              final gridHeight =
+                  math.max(1.0, constraints.maxHeight - selectorHeight);
+              final metrics = _EInkComicGridMetrics.fromSize(
+                context,
+                Size(constraints.maxWidth, gridHeight),
+              );
+              _lastPageSize = metrics.pageSize;
+
+              final comics = _visibleComics(_page);
+              final screenPageCount =
+                  math.max(1, (comics.length / metrics.pageSize).ceil());
+              _lastScreenPageCount = screenPageCount;
+              if (_screenPage >= screenPageCount) {
+                _screenPage = screenPageCount - 1;
+              }
+              final start = _screenPage * metrics.pageSize;
+              final end = math.min(start + metrics.pageSize, comics.length);
+              final screenComics =
+                  start >= comics.length ? <Comic>[] : comics.sublist(start, end);
+
+              return Column(
+                children: [
+                  _buildEInkPageSelector(screenPageCount),
+                  Expanded(
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.translucent,
+                      onHorizontalDragEnd: _handleEInkDragEnd,
+                      child: _EInkComicGrid(
+                        comics: screenComics,
+                        metrics: metrics,
+                        menuBuilder: widget.menuBuilder,
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildEInkPageSelector(int screenPageCount) {
+    final canGoBack = _screenPage > 0 || _canGoToPreviousNetworkPage;
+    final canGoNext =
+        _screenPage < screenPageCount - 1 || _canGoToNextNetworkPage;
+    return SizedBox(
+      height: 52,
+      child: Row(
+        children: [
+          FilledButton(
+            onPressed: canGoBack ? _toPreviousScreenPage : null,
+            child: Text("Back".tl),
+          ).fixWidth(84),
+          Expanded(
+            child: Center(
+              child: Text(
+                "${"Page".tl} $_page / ${_maxPage ?? '?'}  -  "
+                "${_screenPage + 1} / $screenPageCount",
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ),
+          FilledButton(
+            onPressed: canGoNext ? _toNextScreenPage : null,
+            child: Text("Next".tl),
+          ).fixWidth(84),
+        ],
+      ).paddingHorizontal(16),
+    );
   }
 
   Widget buildPagingMode() {

@@ -620,8 +620,13 @@ abstract mixin class _ReaderLocation {
 
   void update();
 
-  bool enablePageAnimation(String cid, ComicType type) => appdata.settings
-      .getReaderSetting(cid, type.sourceKey, 'enablePageAnimation');
+  bool enablePageAnimation(String cid, ComicType type) {
+    if (appdata.settings['eInkMode'] == true) {
+      return false;
+    }
+    return appdata.settings
+        .getReaderSetting(cid, type.sourceKey, 'enablePageAnimation');
+  }
 
   _ImageViewController? _imageViewController;
 

@@ -327,8 +327,12 @@ class _AnimatedImageState extends State<AnimatedImage>
     }
 
     return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 200),
-      reverseDuration: const Duration(milliseconds: 200),
+      duration: appdata.settings['eInkMode'] == true
+          ? Duration.zero
+          : const Duration(milliseconds: 200),
+      reverseDuration: appdata.settings['eInkMode'] == true
+          ? Duration.zero
+          : const Duration(milliseconds: 200),
       child: result,
     );
   }

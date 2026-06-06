@@ -4,13 +4,14 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:venera/foundation/app.dart';
+import 'package:venera/foundation/appdata.dart';
 
 const double _kBackGestureWidth = 20.0;
 const int _kMaxDroppedSwipePageForwardAnimationTime = 800;
 const int _kMaxPageBackAnimationTime = 300;
 const double _kMinFlingVelocity = 1.0;
 
-class AppPageRoute<T> extends PageRoute<T> with _AppRouteTransitionMixin{
+class AppPageRoute<T> extends PageRoute<T> with _AppRouteTransitionMixin {
   /// Construct a MaterialPageRoute whose contents are defined by [builder].
   AppPageRoute({
     required this.builder,
@@ -59,7 +60,10 @@ mixin _AppRouteTransitionMixin<T> on PageRoute<T> {
   Widget buildContent(BuildContext context);
 
   @override
-  Duration get transitionDuration => const Duration(milliseconds: 300);
+  Duration get transitionDuration =>
+      appdata.settings['eInkMode'] == true
+          ? Duration.zero
+          : const Duration(milliseconds: 300);
 
   @override
   Color? get barrierColor => null;
@@ -116,27 +120,36 @@ mixin _AppRouteTransitionMixin<T> on PageRoute<T> {
   }
 
   @override
-  Widget buildTransitions(BuildContext context, Animation<double> animation, Animation<double> secondaryAnimation, Widget child) {
+  Widget buildTransitions(
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) {
+    if (appdata.settings['eInkMode'] == true) {
+      return child;
+    }
     PageTransitionsBuilder builder;
     if (App.isAndroid) {
       builder = PredictiveBackPageTransitionsBuilder();
     } else {
       builder = SlidePageTransitionBuilder();
-  }
+    }
 
-  return builder.buildTransitions(
-        this,
-        context,
-        animation,
-        secondaryAnimation,
-    enableIOSGesture && App.isIOS
-      ? IOSBackGestureDetector(
-        gestureWidth: _kBackGestureWidth,
-        enabledCallback: () => _isPopGestureEnabled<T>(this),
-        onStartPopGesture: () => _startPopGesture(this),
-        child: child,
-        )
-      : child);
+    return builder.buildTransitions(
+      this,
+      context,
+      animation,
+      secondaryAnimation,
+      enableIOSGesture && App.isIOS
+          ? IOSBackGestureDetector(
+              gestureWidth: _kBackGestureWidth,
+              enabledCallback: () => _isPopGestureEnabled<T>(this),
+              onStartPopGesture: () => _startPopGesture(this),
+              child: child,
+            )
+          : child,
+    );
   }
 
   IOSBackGestureController _startPopGesture(PageRoute<T> route) {

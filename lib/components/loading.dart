@@ -101,10 +101,14 @@ class ListLoadingIndicator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const SizedBox(
+    return SizedBox(
       width: double.infinity,
       height: 80,
-      child: Center(child: FiveDotLoadingAnimation()),
+      child: Center(
+        child: appdata.settings['eInkMode'] == true
+            ? Text("Loading".tl)
+            : const FiveDotLoadingAnimation(),
+      ),
     );
   }
 }

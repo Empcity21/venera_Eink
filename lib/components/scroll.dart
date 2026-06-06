@@ -81,6 +81,13 @@ class _SmoothScrollProviderState extends State<SmoothScrollProvider> {
 
   @override
   Widget build(BuildContext context) {
+    if (appdata.settings['eInkMode'] == true) {
+      return widget.builder(
+        context,
+        _controller,
+        const ClampingScrollPhysics(),
+      );
+    }
     if (App.isMacOS) {
       return widget.builder(
         context,
@@ -350,7 +357,9 @@ class _AppScrollBarState extends State<AppScrollBar> {
               right: 0,
               child: AnimatedOpacity(
                 opacity: _isVisible ? 1.0 : 0.0,
-                duration: const Duration(milliseconds: 200),
+                duration: appdata.settings['eInkMode'] == true
+                    ? Duration.zero
+                    : const Duration(milliseconds: 200),
                 child: MouseRegion(
                   cursor: SystemMouseCursors.click,
                   onEnter: (_) => _showScrollbar(),

@@ -46,9 +46,10 @@ class _RankingPageState extends State<RankingPage> {
       ),
       body: ComicList(
         key: Key(optionValue),
-        errorLeading: SizedBox(height: topPadding),
-        leadingSliver:
-            buildOptions().sliverPadding(EdgeInsets.only(top: topPadding)),
+        errorLeading: buildOptions().paddingTop(topPadding),
+        leadingSliver: buildOptions().sliverPadding(
+          EdgeInsets.only(top: topPadding),
+        ),
         loadPage: data.rankingData!.load == null
             ? null
             : (i) => data.rankingData!.load!(optionValue, i),
@@ -82,12 +83,10 @@ class _RankingPageState extends State<RankingPage> {
           buildOptionItem(option.value.tl, option.key, context)
       ],
     ));
-    return SliverToBoxAdapter(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [...children, const Divider()],
-      ).paddingLeft(8).paddingRight(8),
-    );
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [...children, const Divider()],
+    ).paddingLeft(8).paddingRight(8);
   }
 }

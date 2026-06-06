@@ -1,3 +1,5 @@
+import "dart:math" as math;
+
 import "package:flutter/material.dart";
 import 'package:shimmer_animation/shimmer_animation.dart';
 import "package:venera/components/components.dart";
@@ -157,6 +159,52 @@ class _SliverSearchResultState extends State<_SliverSearchResult>
         .paddingBottom(2);
   }
 
+  Widget buildPlaceholders({required bool shimmer}) {
+    final content = LayoutBuilder(builder: (context, constrains) {
+      var itemWidth = _comicWidth + _kLeftPadding;
+      var items = (constrains.maxWidth / itemWidth).ceil();
+      return Stack(
+        children: [
+          Positioned(
+            left: 0,
+            top: 0,
+            bottom: 0,
+            child: Row(
+              children: List.generate(
+                items,
+                (index) => buildPlaceHolder(),
+              ),
+            ),
+          )
+        ],
+      );
+    });
+    return shimmer ? Shimmer(child: content) : content;
+  }
+
+  Widget buildComicsStrip() {
+    if (appdata.settings['eInkMode'] == true) {
+      return LayoutBuilder(builder: (context, constrains) {
+        var itemWidth = _comicWidth + _kLeftPadding;
+        var items = math.max(
+          1,
+          (constrains.maxWidth / itemWidth).floor(),
+        );
+        return Row(
+          children: [
+            for (var c in comics!.take(items)) buildComic(c),
+          ],
+        );
+      });
+    }
+    return ListView(
+      scrollDirection: Axis.horizontal,
+      children: [
+        for (var c in comics!) buildComic(c),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (error != null && error!.startsWith("CloudflareException")) {
@@ -182,26 +230,8 @@ class _SliverSearchResultState extends State<_SliverSearchResult>
             SizedBox(
               height: _kComicHeight,
               width: double.infinity,
-              child: Shimmer(
-                child: LayoutBuilder(builder: (context, constrains) {
-                  var itemWidth = _comicWidth + _kLeftPadding;
-                  var items = (constrains.maxWidth / itemWidth).ceil();
-                  return Stack(
-                    children: [
-                      Positioned(
-                        left: 0,
-                        top: 0,
-                        bottom: 0,
-                        child: Row(
-                          children: List.generate(
-                            items,
-                            (index) => buildPlaceHolder(),
-                          ),
-                        ),
-                      )
-                    ],
-                  );
-                }),
+              child: buildPlaceholders(
+                shimmer: appdata.settings['eInkMode'] != true,
               ),
             )
           else if (error != null || comics == null || comics!.isEmpty)
@@ -229,12 +259,7 @@ class _SliverSearchResultState extends State<_SliverSearchResult>
           else
             SizedBox(
               height: _kComicHeight,
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                children: [
-                  for (var c in comics!) buildComic(c),
-                ],
-              ),
+              child: buildComicsStrip(),
             ),
         ],
       ).paddingBottom(16),

@@ -174,6 +174,7 @@ class Settings with ChangeNotifier {
   final _data = <String, dynamic>{
     'comicDisplayMode': 'detailed', // detailed, brief
     'comicTileScale': 1.00, // 0.75-1.25
+    'eInkMode': true,
     'color': 'system', // red, pink, purple, green, orange, blue
     'theme_mode': 'system', // light, dark, system
     'newFavoriteAddTo': 'end', // start, end
@@ -194,7 +195,7 @@ class Settings with ChangeNotifier {
     'readerScreenPicNumberForPortrait': 1, // 1 - 5
     'enableTapToTurnPages': true,
     'reverseTapToTurnPages': false,
-    'enablePageAnimation': true,
+    'enablePageAnimation': false,
     'language': 'system', // system, zh-CN, zh-TW, en-US
     'cacheSize': 2048, // in MB
     'downloadThreads': 5,

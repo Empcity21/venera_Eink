@@ -442,15 +442,23 @@ class _AppTabBarState extends State<AppTabBar> {
       0.0,
       scrollController.position.maxScrollExtent,
     );
-    scrollController.animateTo(
-      scrollOffset,
-      duration: const Duration(milliseconds: 200),
-      curve: Curves.easeInOut,
-    );
+    if (appdata.settings['eInkMode'] == true) {
+      scrollController.jumpTo(scrollOffset);
+    } else {
+      scrollController.animateTo(
+        scrollOffset,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeInOut,
+      );
+    }
   }
 
   void onTabClicked(int i) {
-    _controller.animateTo(i);
+    if (appdata.settings['eInkMode'] == true) {
+      _controller.index = i;
+    } else {
+      _controller.animateTo(i);
+    }
   }
 
   Widget buildTab(int i) {
