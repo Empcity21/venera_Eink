@@ -267,6 +267,127 @@ class _LocalFavoritesPageState extends State<_LocalFavoritesPage> {
     }
   }
 
+  List<MenuEntry> buildComicMenu(Comic c) {
+    return [
+      if (!isAllFolder)
+        MenuEntry(
+          icon: Icons.delete,
+          text: "Delete".tl,
+          onClick: () {
+            LocalFavoritesManager().deleteComicWithId(
+              widget.folder,
+              c.id,
+              (c as FavoriteItem).type,
+            );
+          },
+        ),
+      MenuEntry(
+        icon: Icons.check,
+        text: "Select".tl,
+        onClick: () {
+          setState(() {
+            if (!multiSelectMode) {
+              multiSelectMode = true;
+            }
+            if (selectedComics.containsKey(c as FavoriteItem)) {
+              selectedComics.remove(c);
+              _checkExitSelectMode();
+            } else {
+              selectedComics[c] = true;
+            }
+            lastSelectedIndex = comics.indexOf(c);
+          });
+        },
+      ),
+      MenuEntry(
+        icon: Icons.download,
+        text: "Download".tl,
+        onClick: () {
+          downloadComic(c as FavoriteItem);
+          context.showMessage(
+            message: "Download started".tl,
+          );
+        },
+      ),
+      if (appdata.settings["onClickFavorite"] == "viewDetail")
+        MenuEntry(
+          icon: Icons.menu_book_outlined,
+          text: "Read".tl,
+          onClick: () {
+            App.mainNavigatorKey?.currentContext?.to(
+              () => ReaderWithLoading(
+                id: c.id,
+                sourceKey: c.sourceKey,
+              ),
+            );
+          },
+        ),
+    ];
+  }
+
+  void onComicTap(Comic c, int heroID) {
+    if (multiSelectMode) {
+      setState(() {
+        if (selectedComics.containsKey(c as FavoriteItem)) {
+          selectedComics.remove(c);
+          _checkExitSelectMode();
+        } else {
+          selectedComics[c] = true;
+        }
+        lastSelectedIndex = comics.indexOf(c);
+      });
+    } else if (appdata.settings["onClickFavorite"] == "viewDetail") {
+      App.mainNavigatorKey?.currentContext?.to(
+        () => ComicPage(
+          id: c.id,
+          sourceKey: c.sourceKey,
+          cover: c.cover,
+          title: c.title,
+          heroID: heroID,
+        ),
+      );
+    } else {
+      App.mainNavigatorKey?.currentContext?.to(
+        () => ReaderWithLoading(id: c.id, sourceKey: c.sourceKey),
+      );
+    }
+  }
+
+  void onComicLongPressed(Comic c, int heroID) {
+    setState(() {
+      if (!multiSelectMode) {
+        multiSelectMode = true;
+        if (!selectedComics.containsKey(c as FavoriteItem)) {
+          selectedComics[c] = true;
+        }
+        lastSelectedIndex = comics.indexOf(c);
+      } else {
+        if (lastSelectedIndex != null) {
+          int start = lastSelectedIndex!;
+          int end = comics.indexOf(c as FavoriteItem);
+          if (start > end) {
+            int temp = start;
+            start = end;
+            end = temp;
+          }
+
+          for (int i = start; i <= end; i++) {
+            if (i == lastSelectedIndex) continue;
+
+            var comic = comics[i];
+            if (selectedComics.containsKey(comic)) {
+              selectedComics.remove(comic);
+            } else {
+              selectedComics[comic] = true;
+            }
+          }
+        }
+        lastSelectedIndex = comics.indexOf(c as FavoriteItem);
+      }
+      _checkExitSelectMode();
+    });
+  }
+
   var scrollController = ScrollController();
 
   @override
@@ -275,6 +396,7 @@ class _LocalFavoritesPageState extends State<_LocalFavoritesPage> {
     if (title == _localAllFolderLabel) {
       title = "All".tl;
     }
+    final visibleComics = searchMode ? searchResults : filterComics(comics);
 
     Widget body = SmoothCustomScrollView(
       controller: scrollController,
@@ -629,134 +751,32 @@ class _LocalFavoritesPageState extends State<_LocalFavoritesPage> {
           SliverToBoxAdapter(
             child: SizedBox(
               height: 200,
-              child: const Center(
-                child: CircularProgressIndicator(),
+              child: Center(
+                child: appdata.settings['eInkMode'] == true
+                    ? Text("Loading".tl)
+                    : const CircularProgressIndicator(),
               ),
             ),
           )
         else
-          SliverGridComics(
-            comics: searchMode ? searchResults : filterComics(comics),
-            selections: selectedComics,
-            menuBuilder: (c) {
-              return [
-                if (!isAllFolder)
-                  MenuEntry(
-                    icon: Icons.delete,
-                    text: "Delete".tl,
-                    onClick: () {
-                      LocalFavoritesManager().deleteComicWithId(
-                        widget.folder,
-                        c.id,
-                        (c as FavoriteItem).type,
-                      );
-                    },
+          appdata.settings['eInkMode'] == true
+              ? SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: EInkComicGridPager(
+                    comics: visibleComics,
+                    selections: selectedComics,
+                    menuBuilder: buildComicMenu,
+                    onTap: onComicTap,
+                    onLongPressed: onComicLongPressed,
                   ),
-                MenuEntry(
-                  icon: Icons.check,
-                  text: "Select".tl,
-                  onClick: () {
-                    setState(() {
-                      if (!multiSelectMode) {
-                        multiSelectMode = true;
-                      }
-                      if (selectedComics.containsKey(c as FavoriteItem)) {
-                        selectedComics.remove(c);
-                        _checkExitSelectMode();
-                      } else {
-                        selectedComics[c] = true;
-                      }
-                      lastSelectedIndex = comics.indexOf(c);
-                    });
-                  },
+                )
+              : SliverGridComics(
+                  comics: visibleComics,
+                  selections: selectedComics,
+                  menuBuilder: buildComicMenu,
+                  onTap: onComicTap,
+                  onLongPressed: onComicLongPressed,
                 ),
-                MenuEntry(
-                  icon: Icons.download,
-                  text: "Download".tl,
-                  onClick: () {
-                    downloadComic(c as FavoriteItem);
-                    context.showMessage(
-                      message: "Download started".tl,
-                    );
-                  },
-                ),
-                if (appdata.settings["onClickFavorite"] == "viewDetail")
-                  MenuEntry(
-                    icon: Icons.menu_book_outlined,
-                    text: "Read".tl,
-                    onClick: () {
-                      App.mainNavigatorKey?.currentContext?.to(
-                        () => ReaderWithLoading(
-                          id: c.id,
-                          sourceKey: c.sourceKey,
-                        )
-                      );
-                    },
-                  ),
-              ];
-            },
-            onTap: (c, heroID) {
-              if (multiSelectMode) {
-                setState(() {
-                  if (selectedComics.containsKey(c as FavoriteItem)) {
-                    selectedComics.remove(c);
-                    _checkExitSelectMode();
-                  } else {
-                    selectedComics[c] = true;
-                  }
-                  lastSelectedIndex = comics.indexOf(c);
-                });
-              } else if (appdata.settings["onClickFavorite"] == "viewDetail") {
-                App.mainNavigatorKey?.currentContext?.to(
-                  () => ComicPage(
-                    id: c.id,
-                    sourceKey: c.sourceKey,
-                    cover: c.cover,
-                    title: c.title,
-                    heroID: heroID,
-                  )
-                );
-              } else {
-                App.mainNavigatorKey?.currentContext?.to(
-                  () => ReaderWithLoading(id: c.id, sourceKey: c.sourceKey),
-                );
-              }
-            },
-            onLongPressed: (c, heroID) {
-              setState(() {
-                if (!multiSelectMode) {
-                  multiSelectMode = true;
-                  if (!selectedComics.containsKey(c as FavoriteItem)) {
-                    selectedComics[c] = true;
-                  }
-                  lastSelectedIndex = comics.indexOf(c);
-                } else {
-                  if (lastSelectedIndex != null) {
-                    int start = lastSelectedIndex!;
-                    int end = comics.indexOf(c as FavoriteItem);
-                    if (start > end) {
-                      int temp = start;
-                      start = end;
-                      end = temp;
-                    }
-
-                    for (int i = start; i <= end; i++) {
-                      if (i == lastSelectedIndex) continue;
-
-                      var comic = comics[i];
-                      if (selectedComics.containsKey(comic)) {
-                        selectedComics.remove(comic);
-                      } else {
-                        selectedComics[comic] = true;
-                      }
-                    }
-                  }
-                  lastSelectedIndex = comics.indexOf(c as FavoriteItem);
-                }
-                _checkExitSelectMode();
-              });
-            },
-          ),
       ],
     );
     body = AppScrollBar(
@@ -792,11 +812,169 @@ class _LocalFavoritesPageState extends State<_LocalFavoritesPage> {
         .folderNames
         .where((folder) => folder != favPage.folder)
         .toList();
+    var targetFolderPage = 0;
+    var lastTargetFolderPageCount = 1;
+    const targetFolderRowHeight = 56.0;
 
     showPopUpWidget(
       App.rootContext,
       StatefulBuilder(
         builder: (context, setState) {
+          void reloadTargetFolders() {
+            targetFolders = LocalFavoritesManager()
+                .folderNames
+                .where((folder) => folder != favPage.folder)
+                .toList();
+            if (targetFolderPage >= lastTargetFolderPageCount) {
+              targetFolderPage = max(0, lastTargetFolderPageCount - 1);
+            }
+          }
+
+          Widget buildNewFolderButton() {
+            return SizedBox(
+              height: targetFolderRowHeight,
+              child: Center(
+                child: TextButton(
+                  onPressed: () {
+                    newFolder().then((v) {
+                      setState(reloadTargetFolders);
+                    });
+                  },
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.add, size: 20),
+                      const SizedBox(width: 4),
+                      Text("New Folder".tl),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }
+
+          Widget buildTargetFolderTile(String folder) {
+            var disabled = false;
+            if (selectedLocalFolders.isNotEmpty) {
+              if (added.contains(folder) &&
+                  !added.contains(selectedLocalFolders.first)) {
+                disabled = true;
+              } else if (!added.contains(folder) &&
+                  added.contains(selectedLocalFolders.first)) {
+                disabled = true;
+              }
+            }
+            return SizedBox(
+              height: targetFolderRowHeight,
+              child: CheckboxListTile(
+                title: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        folder,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                  ],
+                ),
+                value: selectedLocalFolders.contains(folder),
+                onChanged: disabled
+                    ? null
+                    : (v) {
+                        setState(() {
+                          if (v!) {
+                            selectedLocalFolders.add(folder);
+                          } else {
+                            selectedLocalFolders.remove(folder);
+                          }
+                        });
+                      },
+              ),
+            );
+          }
+
+          Widget buildScrollableTargetFolderList() {
+            return ListView.builder(
+              itemCount: targetFolders.length + 1,
+              itemBuilder: (context, index) {
+                if (index == targetFolders.length) {
+                  return buildNewFolderButton();
+                }
+                return buildTargetFolderTile(targetFolders[index]);
+              },
+            );
+          }
+
+          Widget buildPagedTargetFolderList() {
+            return LayoutBuilder(
+              builder: (context, constraints) {
+                const selectorHeight = 52.0;
+                final itemCount = targetFolders.length + 1;
+                final listHeight =
+                    max(1.0, constraints.maxHeight - selectorHeight);
+                final itemsPerPage =
+                    max(1, (listHeight / targetFolderRowHeight).floor());
+                final pageCount =
+                    max(1, (itemCount / itemsPerPage).ceil());
+                lastTargetFolderPageCount = pageCount;
+                if (targetFolderPage >= pageCount) {
+                  targetFolderPage = pageCount - 1;
+                }
+                final start = targetFolderPage * itemsPerPage;
+                final end = min(start + itemsPerPage, itemCount);
+
+                return Column(
+                  children: [
+                    SizedBox(
+                      height: selectorHeight,
+                      child: Row(
+                        children: [
+                          FilledButton(
+                            onPressed: targetFolderPage > 0
+                                ? () => setState(() {
+                                      targetFolderPage--;
+                                    })
+                                : null,
+                            child: Text("Back".tl),
+                          ).fixWidth(84),
+                          Expanded(
+                            child: Center(
+                              child: Text(
+                                "${"Page".tl} ${targetFolderPage + 1} / $pageCount",
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ),
+                          FilledButton(
+                            onPressed: targetFolderPage < pageCount - 1
+                                ? () => setState(() {
+                                      targetFolderPage++;
+                                    })
+                                : null,
+                            child: Text("Next".tl),
+                          ).fixWidth(84),
+                        ],
+                      ).paddingHorizontal(16),
+                    ),
+                    Expanded(
+                      child: Column(
+                        children: [
+                          for (var i = start; i < end; i++)
+                            i == targetFolders.length
+                                ? buildNewFolderButton()
+                                : buildTargetFolderTile(targetFolders[i]),
+                        ],
+                      ),
+                    ),
+                  ],
+                );
+              },
+            );
+          }
+
           return PopUpWidgetScaffold(
             title: favPage.folder ?? "Unselected".tl,
             body: Padding(
@@ -807,70 +985,9 @@ class _LocalFavoritesPageState extends State<_LocalFavoritesPage> {
                 child: Column(
                   children: [
                     Expanded(
-                      child: ListView.builder(
-                        itemCount: targetFolders.length + 1,
-                        itemBuilder: (context, index) {
-                          if (index == targetFolders.length) {
-                            return SizedBox(
-                              height: 36,
-                              child: Center(
-                                child: TextButton(
-                                  onPressed: () {
-                                    newFolder().then((v) {
-                                      setState(() {
-                                        targetFolders = LocalFavoritesManager()
-                                            .folderNames
-                                            .where((folder) =>
-                                                folder != favPage.folder)
-                                            .toList();
-                                      });
-                                    });
-                                  },
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      const Icon(Icons.add, size: 20),
-                                      const SizedBox(width: 4),
-                                      Text("New Folder".tl),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            );
-                          }
-                          var folder = targetFolders[index];
-                          var disabled = false;
-                          if (selectedLocalFolders.isNotEmpty) {
-                            if (added.contains(folder) &&
-                                !added.contains(selectedLocalFolders.first)) {
-                              disabled = true;
-                            } else if (!added.contains(folder) &&
-                                added.contains(selectedLocalFolders.first)) {
-                              disabled = true;
-                            }
-                          }
-                          return CheckboxListTile(
-                            title: Row(
-                              children: [
-                                Text(folder),
-                                const SizedBox(width: 8),
-                              ],
-                            ),
-                            value: selectedLocalFolders.contains(folder),
-                            onChanged: disabled
-                                ? null
-                                : (v) {
-                                    setState(() {
-                                      if (v!) {
-                                        selectedLocalFolders.add(folder);
-                                      } else {
-                                        selectedLocalFolders.remove(folder);
-                                      }
-                                    });
-                                  },
-                          );
-                        },
-                      ),
+                      child: appdata.settings['eInkMode'] == true
+                          ? buildPagedTargetFolderList()
+                          : buildScrollableTargetFolderList(),
                     ),
                     Center(
                       child: FilledButton(

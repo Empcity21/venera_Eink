@@ -25,6 +25,7 @@ import 'package:venera/utils/io.dart';
 import 'package:venera/utils/opencc.dart';
 import 'package:venera/utils/tags_translation.dart';
 import 'package:venera/utils/translations.dart';
+import 'package:venera/utils/volume.dart';
 
 part 'favorite_actions.dart';
 part 'side_bar.dart';
@@ -87,7 +88,9 @@ class _FavoritesPageState extends State<FavoritesPage> {
             left: context.width <= _kTwoPanelChangeWidth ? -_kLeftBarWidth : 0,
             top: 0,
             bottom: 0,
-            duration: const Duration(milliseconds: 200),
+            duration: appdata.settings['eInkMode'] == true
+                ? Duration.zero
+                : const Duration(milliseconds: 200),
             child: (const _LeftBar()).fixWidth(_kLeftBarWidth),
           ),
           Positioned(
@@ -108,6 +111,12 @@ class _FavoritesPageState extends State<FavoritesPage> {
       fullscreenDialog: true,
       opaque: false,
       barrierColor: Colors.black.toOpacity(0.36),
+      transitionDuration: appdata.settings['eInkMode'] == true
+          ? Duration.zero
+          : const Duration(milliseconds: 300),
+      reverseTransitionDuration: appdata.settings['eInkMode'] == true
+          ? Duration.zero
+          : const Duration(milliseconds: 300),
       pageBuilder: (context, animation, secondary) {
         return Align(
           alignment: Alignment.centerLeft,
@@ -126,6 +135,9 @@ class _FavoritesPageState extends State<FavoritesPage> {
         );
       },
       transitionsBuilder: (context, animation, secondary, child) {
+        if (appdata.settings['eInkMode'] == true) {
+          return child;
+        }
         var offset =
             Tween<Offset>(begin: const Offset(-1, 0), end: const Offset(0, 0));
         return SlideTransition(

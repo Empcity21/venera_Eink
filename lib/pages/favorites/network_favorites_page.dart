@@ -199,6 +199,98 @@ class _MultiFolderFavoritesPageState extends State<_MultiFolderFavoritesPage> {
 
   Map<String, String>? folders;
 
+  int _folderPage = 0;
+
+  int _lastFolderPageCount = 1;
+
+  VolumeListener? _volumeListener;
+
+  static const _kFolderTileHeight = 56.0;
+
+  @override
+  void initState() {
+    super.initState();
+    appdata.settings.addListener(_onSettingsChanged);
+    _configureVolumeListener();
+  }
+
+  @override
+  void dispose() {
+    _volumeListener?.cancel();
+    appdata.settings.removeListener(_onSettingsChanged);
+    super.dispose();
+  }
+
+  bool get _eInkMode => appdata.settings['eInkMode'] == true;
+
+  void _onSettingsChanged() {
+    _configureVolumeListener();
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  bool get _canHandleVolumeKey {
+    if (!_eInkMode || !App.isAndroid) {
+      return false;
+    }
+    if (appdata.settings['enableTurnPageByVolumeKey'] != true) {
+      return false;
+    }
+    final route = ModalRoute.of(context);
+    return route?.isCurrent ?? true;
+  }
+
+  void _configureVolumeListener() {
+    final shouldListen = _eInkMode &&
+        App.isAndroid &&
+        appdata.settings['enableTurnPageByVolumeKey'] == true;
+    if (!shouldListen) {
+      _volumeListener?.cancel();
+      _volumeListener = null;
+      return;
+    }
+    _volumeListener ??= VolumeListener(
+      onDown: () {
+        if (_canHandleVolumeKey) {
+          _toNextFolderPage();
+        }
+      },
+      onUp: () {
+        if (_canHandleVolumeKey) {
+          _toPreviousFolderPage();
+        }
+      },
+    )..listen();
+  }
+
+  void _toNextFolderPage() {
+    if (_folderPage >= _lastFolderPageCount - 1) {
+      return;
+    }
+    setState(() {
+      _folderPage++;
+    });
+  }
+
+  void _toPreviousFolderPage() {
+    if (_folderPage <= 0) {
+      return;
+    }
+    setState(() {
+      _folderPage--;
+    });
+  }
+
+  void _handleEInkDragEnd(DragEndDetails details) {
+    final velocity = details.primaryVelocity ?? 0;
+    if (velocity < -80) {
+      _toNextFolderPage();
+    } else if (velocity > 80) {
+      _toPreviousFolderPage();
+    }
+  }
+
   void showFolders() {
     context
         .findAncestorStateOfType<_FavoritesPageState>()!
@@ -207,6 +299,9 @@ class _MultiFolderFavoritesPageState extends State<_MultiFolderFavoritesPage> {
 
   void loadPage() async {
     var res = await widget.data.loadFolders!();
+    if (!mounted) {
+      return;
+    }
     _loading = false;
     if (res.error) {
       setState(() {
@@ -221,6 +316,146 @@ class _MultiFolderFavoritesPageState extends State<_MultiFolderFavoritesPage> {
 
   void openFolder(String key, String title) {
     context.to(() => _FavoriteFolder(widget.data, key, title));
+  }
+
+  void showCreateFolderDialog() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return _CreateFolderDialog(
+          widget.data,
+          () => setState(() {
+            _loading = true;
+            _folderPage = 0;
+          }),
+        );
+      },
+    );
+  }
+
+  List<Widget> buildFolderItems() {
+    final keys = folders!.keys.toList();
+    return [
+      if (widget.data.allFavoritesId != null)
+        _FolderTile(
+          name: "All".tl,
+          onTap: () => openFolder(widget.data.allFavoritesId!, "All".tl),
+        ),
+      for (final key in keys)
+        _FolderTile(
+          name: folders![key]!,
+          onTap: () => openFolder(key, folders![key]!),
+          deleteFolder: widget.data.deleteFolder == null
+              ? null
+              : () => widget.data.deleteFolder!(key),
+          updateState: () => setState(() {
+            _loading = true;
+            _folderPage = 0;
+          }),
+        ),
+      if (widget.data.addFolder != null) buildCreateFolderTile(),
+    ];
+  }
+
+  Widget buildCreateFolderTile() {
+    return Material(
+      child: InkWell(
+        onTap: showCreateFolderDialog,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text("Create a folder".tl),
+              const SizedBox(width: 8),
+              const Icon(Icons.add, size: 18),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget buildEInkFoldersPage(Appbar appBar) {
+    final items = buildFolderItems();
+    return Column(
+      children: [
+        appBar,
+        Expanded(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              const selectorHeight = 52.0;
+              final listHeight =
+                  max(1.0, constraints.maxHeight - selectorHeight);
+              final itemsPerPage =
+                  max(1, (listHeight / _kFolderTileHeight).floor());
+              final pageCount =
+                  max(1, (items.length / itemsPerPage).ceil());
+              _lastFolderPageCount = pageCount;
+              if (_folderPage >= pageCount) {
+                _folderPage = pageCount - 1;
+              }
+              final start = _folderPage * itemsPerPage;
+              final end = min(start + itemsPerPage, items.length);
+              final pageItems = start >= items.length
+                  ? const <Widget>[]
+                  : items.sublist(start, end);
+
+              return Column(
+                children: [
+                  buildEInkPageSelector(pageCount),
+                  Expanded(
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.translucent,
+                      onHorizontalDragEnd: _handleEInkDragEnd,
+                      child: pageItems.isEmpty
+                          ? Center(child: Text("Empty Page".tl))
+                          : Column(
+                              children: [
+                                for (final item in pageItems)
+                                  SizedBox(
+                                    height: _kFolderTileHeight,
+                                    child: item,
+                                  ),
+                              ],
+                            ),
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget buildEInkPageSelector(int pageCount) {
+    return SizedBox(
+      height: 52,
+      child: Row(
+        children: [
+          FilledButton(
+            onPressed: _folderPage > 0 ? _toPreviousFolderPage : null,
+            child: Text("Back".tl),
+          ).fixWidth(84),
+          Expanded(
+            child: Center(
+              child: Text(
+                "${"Page".tl} ${_folderPage + 1} / $pageCount",
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ),
+          FilledButton(
+            onPressed:
+                _folderPage < pageCount - 1 ? _toNextFolderPage : null,
+            child: Text("Next".tl),
+          ).fixWidth(84),
+        ],
+      ).paddingHorizontal(16),
+    );
   }
 
   @override
@@ -266,9 +501,11 @@ class _MultiFolderFavoritesPageState extends State<_MultiFolderFavoritesPage> {
       return Column(
         children: [
           appBar,
-          const Expanded(
+          Expanded(
             child: Center(
-              child: CircularProgressIndicator(),
+              child: _eInkMode
+                  ? Text("Loading".tl)
+                  : const CircularProgressIndicator(),
             ),
           ),
         ],
@@ -292,6 +529,9 @@ class _MultiFolderFavoritesPageState extends State<_MultiFolderFavoritesPage> {
         ],
       );
     } else {
+      if (_eInkMode) {
+        return buildEInkFoldersPage(appBar);
+      }
       var length = folders!.length;
       if (widget.data.allFavoritesId != null) length++;
       final keys = folders!.keys.toList();

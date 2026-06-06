@@ -20,6 +20,14 @@ class _LeftBarState extends State<_LeftBar> implements FolderList {
 
   var networkFolders = <String>[];
 
+  int _folderPage = 0;
+
+  int _lastFolderPageCount = 1;
+
+  VolumeListener? _volumeListener;
+
+  static const _kFolderRowHeight = 56.0;
+
   void findNetworkFolders() {
     networkFolders.clear();
     var all = ComicSource.all()
@@ -36,6 +44,7 @@ class _LeftBarState extends State<_LeftBar> implements FolderList {
 
   @override
   void initState() {
+    super.initState();
     favPage = widget.favPage ??
         context.findAncestorStateOfType<_FavoritesPageState>()!;
     favPage.folderList = this;
@@ -43,14 +52,79 @@ class _LeftBarState extends State<_LeftBar> implements FolderList {
     findNetworkFolders();
     appdata.settings.addListener(updateFolders);
     LocalFavoritesManager().addListener(updateFolders);
-    super.initState();
+    _configureVolumeListener();
   }
 
   @override
   void dispose() {
-    super.dispose();
+    _volumeListener?.cancel();
     appdata.settings.removeListener(updateFolders);
     LocalFavoritesManager().removeListener(updateFolders);
+    super.dispose();
+  }
+
+  bool get _eInkMode => appdata.settings['eInkMode'] == true;
+
+  bool get _canHandleVolumeKey {
+    if (!widget.withAppbar || !_eInkMode || !App.isAndroid) {
+      return false;
+    }
+    if (appdata.settings['enableTurnPageByVolumeKey'] != true) {
+      return false;
+    }
+    final route = ModalRoute.of(context);
+    return route?.isCurrent ?? true;
+  }
+
+  void _configureVolumeListener() {
+    final shouldListen = widget.withAppbar &&
+        _eInkMode &&
+        App.isAndroid &&
+        appdata.settings['enableTurnPageByVolumeKey'] == true;
+    if (!shouldListen) {
+      _volumeListener?.cancel();
+      _volumeListener = null;
+      return;
+    }
+    _volumeListener ??= VolumeListener(
+      onDown: () {
+        if (_canHandleVolumeKey) {
+          _toNextFolderPage();
+        }
+      },
+      onUp: () {
+        if (_canHandleVolumeKey) {
+          _toPreviousFolderPage();
+        }
+      },
+    )..listen();
+  }
+
+  void _toNextFolderPage() {
+    if (_folderPage >= _lastFolderPageCount - 1) {
+      return;
+    }
+    setState(() {
+      _folderPage++;
+    });
+  }
+
+  void _toPreviousFolderPage() {
+    if (_folderPage <= 0) {
+      return;
+    }
+    setState(() {
+      _folderPage--;
+    });
+  }
+
+  void _handleEInkDragEnd(DragEndDetails details) {
+    final velocity = details.primaryVelocity ?? 0;
+    if (velocity < -80) {
+      _toNextFolderPage();
+    } else if (velocity > 80) {
+      _toPreviousFolderPage();
+    }
   }
 
   @override
@@ -84,34 +158,122 @@ class _LeftBarState extends State<_LeftBar> implements FolderList {
               ),
             ).paddingTop(context.padding.top),
           Expanded(
-            child: ListView.builder(
-              padding: widget.withAppbar
-                  ? EdgeInsets.zero
-                  : EdgeInsets.only(top: context.padding.top),
-              itemCount: folders.length + networkFolders.length + 3,
-              itemBuilder: (context, index) {
-                if (index == 0) {
-                  return buildLocalTitle();
-                }
-                index--;
-                if (index == 0) {
-                  return buildLocalFolder(_localAllFolderLabel);
-                }
-                index--;
-                if (index < folders.length) {
-                  return buildLocalFolder(folders[index]);
-                }
-                index -= folders.length;
-                if (index == 0) {
-                  return buildNetworkTitle();
-                }
-                index--;
-                return buildNetworkFolder(networkFolders[index]);
-              },
-            ),
+            child: _eInkMode ? buildEInkFolderList() : buildScrollableFolderList(),
           )
         ],
       ),
+    );
+  }
+
+  Widget buildScrollableFolderList() {
+    return ListView.builder(
+      padding: widget.withAppbar
+          ? EdgeInsets.zero
+          : EdgeInsets.only(top: context.padding.top),
+      itemCount: folders.length + networkFolders.length + 3,
+      itemBuilder: (context, index) {
+        if (index == 0) {
+          return buildLocalTitle();
+        }
+        index--;
+        if (index == 0) {
+          return buildLocalFolder(_localAllFolderLabel);
+        }
+        index--;
+        if (index < folders.length) {
+          return buildLocalFolder(folders[index]);
+        }
+        index -= folders.length;
+        if (index == 0) {
+          return buildNetworkTitle();
+        }
+        index--;
+        return buildNetworkFolder(networkFolders[index]);
+      },
+    );
+  }
+
+  List<Widget> buildFolderItems() {
+    return [
+      buildLocalTitle(),
+      buildLocalFolder(_localAllFolderLabel),
+      for (final folder in folders) buildLocalFolder(folder),
+      buildNetworkTitle(),
+      for (final folder in networkFolders) buildNetworkFolder(folder),
+    ];
+  }
+
+  Widget buildEInkFolderList() {
+    final topPadding = widget.withAppbar ? 0.0 : context.padding.top;
+    return Padding(
+      padding: EdgeInsets.only(top: topPadding),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          const selectorHeight = 52.0;
+          final items = buildFolderItems();
+          final listHeight = max(1.0, constraints.maxHeight - selectorHeight);
+          final itemsPerPage =
+              max(1, (listHeight / _kFolderRowHeight).floor());
+          final pageCount = max(1, (items.length / itemsPerPage).ceil());
+          _lastFolderPageCount = pageCount;
+          if (_folderPage >= pageCount) {
+            _folderPage = pageCount - 1;
+          }
+          final start = _folderPage * itemsPerPage;
+          final end = min(start + itemsPerPage, items.length);
+          final pageItems =
+              start >= items.length ? const <Widget>[] : items.sublist(start, end);
+
+          return Column(
+            children: [
+              buildEInkPageSelector(pageCount),
+              Expanded(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.translucent,
+                  onHorizontalDragEnd: _handleEInkDragEnd,
+                  child: Column(
+                    children: [
+                      for (final item in pageItems)
+                        SizedBox(
+                          height: _kFolderRowHeight,
+                          child: item,
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget buildEInkPageSelector(int pageCount) {
+    return SizedBox(
+      height: 52,
+      child: Row(
+        children: [
+          FilledButton(
+            onPressed: _folderPage > 0 ? _toPreviousFolderPage : null,
+            child: Text("Back".tl),
+          ).fixWidth(84),
+          Expanded(
+            child: Center(
+              child: Text(
+                "${"Page".tl} ${_folderPage + 1} / $pageCount",
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ),
+          FilledButton(
+            onPressed:
+                _folderPage < pageCount - 1 ? _toNextFolderPage : null,
+            child: Text("Next".tl),
+          ).fixWidth(84),
+        ],
+      ).paddingHorizontal(12),
     );
   }
 
@@ -295,9 +457,13 @@ class _LeftBarState extends State<_LeftBar> implements FolderList {
   @override
   void updateFolders() {
     if (!mounted) return;
+    _configureVolumeListener();
     setState(() {
       folders = LocalFavoritesManager().folderNames;
       findNetworkFolders();
+      if (_folderPage >= _lastFolderPageCount) {
+        _folderPage = max(0, _lastFolderPageCount - 1);
+      }
     });
   }
 }
