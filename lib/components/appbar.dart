@@ -326,7 +326,8 @@ class _AppTabBarState extends State<AppTabBar> {
     _controller = widget.controller ?? DefaultTabController.of(context);
     initPainter();
     super.didChangeDependencies();
-    var prevIndex = bucket.readState(context) as int?;
+    final previousState = bucket.readState(context);
+    final prevIndex = previousState is int ? previousState : null;
     if (prevIndex != null &&
         prevIndex != _controller.index &&
         prevIndex >= 0 &&

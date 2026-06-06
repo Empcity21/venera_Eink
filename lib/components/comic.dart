@@ -1349,24 +1349,44 @@ class ComicListState extends State<ComicList> {
         'nextUrl': _nextUrl,
       };
 
-  void restoreState(Map<String, dynamic>? state) {
-    if (state == null || !enablePageStorage) {
+  Object get _storageIdentifier => "comic-list-state-${widget.key ?? hashCode}";
+
+  void restoreState(dynamic state) {
+    if (state is! Map || !enablePageStorage) {
       return;
     }
-    _maxPage = state['maxPage'];
-    _data.clear();
-    _data.addAll(state['data']);
-    _page = state['page'];
-    _screenPage = state['screenPage'] ?? 0;
-    _error = state['error'];
-    _loading.clear();
-    _loading.addAll(state['loading']);
-    _nextUrl = state['nextUrl'];
+    try {
+      _maxPage = state['maxPage'] as int?;
+      final data = state['data'];
+      _data.clear();
+      if (data is Map) {
+        _data.addAll(data.cast<int, List<Comic>>());
+      }
+      _page = state['page'] is int ? state['page'] as int : 1;
+      _screenPage =
+          state['screenPage'] is int ? state['screenPage'] as int : 0;
+      _error = state['error'] as String?;
+      final loading = state['loading'];
+      _loading.clear();
+      if (loading is Map) {
+        _loading.addAll(loading.cast<int, bool>());
+      }
+      _nextUrl = state['nextUrl'] as String?;
+    } catch (_) {
+      _data.clear();
+      _loading.clear();
+      _page = 1;
+      _screenPage = 0;
+      _maxPage = null;
+      _error = null;
+      _nextUrl = null;
+    }
   }
 
   void storeState() {
     if (enablePageStorage) {
-      PageStorage.of(context).writeState(context, state);
+      PageStorage.of(context)
+          .writeState(context, state, identifier: _storageIdentifier);
     }
   }
 
@@ -1453,7 +1473,12 @@ class ComicListState extends State<ComicList> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    restoreState(PageStorage.of(context).readState(context));
+    restoreState(
+      PageStorage.of(context).readState(
+        context,
+        identifier: _storageIdentifier,
+      ),
+    );
     widget.refreshHandlerCallback?.call(refresh);
   }
 

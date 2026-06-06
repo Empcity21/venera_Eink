@@ -498,14 +498,30 @@ class _MultiPartExplorePageState extends State<_MultiPartExplorePage> {
       };
 
   void restoreState(dynamic state) {
-    if (state == null) return;
-    loading = state["loading"];
-    message = state["message"];
-    parts = state["parts"];
+    if (state is! Map) return;
+    try {
+      loading = state["loading"] is bool ? state["loading"] as bool : true;
+      final restoredMessage = state["message"];
+      message = restoredMessage is String ? restoredMessage : null;
+      final restoredParts = state["parts"];
+      if (restoredParts is List<ExplorePagePart>) {
+        parts = restoredParts;
+      } else if (restoredParts is List) {
+        parts = restoredParts.cast<ExplorePagePart>();
+      }
+    } catch (_) {
+      loading = true;
+      message = null;
+      parts = null;
+    }
   }
 
+  Object get _storageIdentifier =>
+      "multi-part-explore-state-${widget.key ?? hashCode}";
+
   void storeState() {
-    PageStorage.of(context).writeState(context, state);
+    PageStorage.of(context)
+        .writeState(context, state, identifier: _storageIdentifier);
   }
 
   void refresh() {
@@ -526,7 +542,12 @@ class _MultiPartExplorePageState extends State<_MultiPartExplorePage> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    restoreState(PageStorage.of(context).readState(context));
+    restoreState(
+      PageStorage.of(context).readState(
+        context,
+        identifier: _storageIdentifier,
+      ),
+    );
     widget.refreshHandlerCallback(refresh);
   }
 

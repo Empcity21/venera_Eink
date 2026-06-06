@@ -76,6 +76,16 @@ class Comic {
   )   : favoriteId = null,
         stars = null;
 
+  static double? parseStars(dynamic value) {
+    if (value is num) {
+      return value.toDouble();
+    }
+    if (value is String) {
+      return double.tryParse(value);
+    }
+    return null;
+  }
+
   Map<String, dynamic> toJson() {
     return {
       "title": title,
@@ -101,7 +111,7 @@ class Comic {
         maxPage = json["maxPage"],
         language = json["language"],
         favoriteId = json["favoriteId"],
-        stars = (json["stars"] as num?)?.toDouble();
+        stars = parseStars(json["stars"]);
 
   @override
   bool operator ==(Object other) {
@@ -218,7 +228,7 @@ class ComicDetails with HistoryMixin {
         uploadTime = json["uploadTime"],
         updateTime = json["updateTime"],
         url = json["url"],
-        stars = (json["stars"] as num?)?.toDouble(),
+        stars = Comic.parseStars(json["stars"]),
         maxPage = json["maxPage"],
         comments = (json["comments"] as List?)
             ?.map((e) => Comment.fromJson(e))
