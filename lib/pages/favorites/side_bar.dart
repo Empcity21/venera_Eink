@@ -24,8 +24,6 @@ class _LeftBarState extends State<_LeftBar> implements FolderList {
 
   int _lastFolderPageCount = 1;
 
-  VolumeListener? _volumeListener;
-
   static const _kFolderRowHeight = 56.0;
 
   void findNetworkFolders() {
@@ -57,7 +55,7 @@ class _LeftBarState extends State<_LeftBar> implements FolderList {
 
   @override
   void dispose() {
-    _volumeListener?.cancel();
+    VolumePageTurnRegistry.unregister(this);
     appdata.settings.removeListener(updateFolders);
     LocalFavoritesManager().removeListener(updateFolders);
     super.dispose();
@@ -72,6 +70,9 @@ class _LeftBarState extends State<_LeftBar> implements FolderList {
     if (appdata.settings['enableTurnPageByVolumeKey'] != true) {
       return false;
     }
+    if (!TickerMode.of(context)) {
+      return false;
+    }
     final route = ModalRoute.of(context);
     return route?.isCurrent ?? true;
   }
@@ -82,22 +83,19 @@ class _LeftBarState extends State<_LeftBar> implements FolderList {
         App.isAndroid &&
         appdata.settings['enableTurnPageByVolumeKey'] == true;
     if (!shouldListen) {
-      _volumeListener?.cancel();
-      _volumeListener = null;
+      VolumePageTurnRegistry.unregister(this);
       return;
     }
-    _volumeListener ??= VolumeListener(
+    VolumePageTurnRegistry.register(
+      this,
+      canHandle: () => _canHandleVolumeKey,
       onDown: () {
-        if (_canHandleVolumeKey) {
-          _toNextFolderPage();
-        }
+        _toNextFolderPage();
       },
       onUp: () {
-        if (_canHandleVolumeKey) {
-          _toPreviousFolderPage();
-        }
+        _toPreviousFolderPage();
       },
-    )..listen();
+    );
   }
 
   void _toNextFolderPage() {

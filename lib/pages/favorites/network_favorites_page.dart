@@ -203,8 +203,6 @@ class _MultiFolderFavoritesPageState extends State<_MultiFolderFavoritesPage> {
 
   int _lastFolderPageCount = 1;
 
-  VolumeListener? _volumeListener;
-
   static const _kFolderTileHeight = 56.0;
 
   @override
@@ -216,7 +214,7 @@ class _MultiFolderFavoritesPageState extends State<_MultiFolderFavoritesPage> {
 
   @override
   void dispose() {
-    _volumeListener?.cancel();
+    VolumePageTurnRegistry.unregister(this);
     appdata.settings.removeListener(_onSettingsChanged);
     super.dispose();
   }
@@ -237,6 +235,9 @@ class _MultiFolderFavoritesPageState extends State<_MultiFolderFavoritesPage> {
     if (appdata.settings['enableTurnPageByVolumeKey'] != true) {
       return false;
     }
+    if (!TickerMode.of(context)) {
+      return false;
+    }
     final route = ModalRoute.of(context);
     return route?.isCurrent ?? true;
   }
@@ -246,22 +247,19 @@ class _MultiFolderFavoritesPageState extends State<_MultiFolderFavoritesPage> {
         App.isAndroid &&
         appdata.settings['enableTurnPageByVolumeKey'] == true;
     if (!shouldListen) {
-      _volumeListener?.cancel();
-      _volumeListener = null;
+      VolumePageTurnRegistry.unregister(this);
       return;
     }
-    _volumeListener ??= VolumeListener(
+    VolumePageTurnRegistry.register(
+      this,
+      canHandle: () => _canHandleVolumeKey,
       onDown: () {
-        if (_canHandleVolumeKey) {
-          _toNextFolderPage();
-        }
+        _toNextFolderPage();
       },
       onUp: () {
-        if (_canHandleVolumeKey) {
-          _toPreviousFolderPage();
-        }
+        _toPreviousFolderPage();
       },
-    )..listen();
+    );
   }
 
   void _toNextFolderPage() {

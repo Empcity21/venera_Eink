@@ -30,11 +30,9 @@ class _AggregatedSearchPageState extends State<AggregatedSearchPage> {
 
   int _lastSourcePageCount = 1;
 
-  VolumeListener? _volumeListener;
-
   final _resultCache = <String, _AggregatedSearchResultCache>{};
 
-  static const _kSourceRowHeight = 250.0;
+  static const _kSourceRowHeight = 264.0;
 
   bool get _eInkMode => appdata.settings['eInkMode'] == true;
 
@@ -70,7 +68,7 @@ class _AggregatedSearchPageState extends State<AggregatedSearchPage> {
 
   @override
   void dispose() {
-    _volumeListener?.cancel();
+    VolumePageTurnRegistry.unregister(this);
     appdata.settings.removeListener(_onSettingsChanged);
     super.dispose();
   }
@@ -89,6 +87,9 @@ class _AggregatedSearchPageState extends State<AggregatedSearchPage> {
     if (appdata.settings['enableTurnPageByVolumeKey'] != true) {
       return false;
     }
+    if (!TickerMode.of(context)) {
+      return false;
+    }
     final route = ModalRoute.of(context);
     return route?.isCurrent ?? true;
   }
@@ -98,22 +99,19 @@ class _AggregatedSearchPageState extends State<AggregatedSearchPage> {
         App.isAndroid &&
         appdata.settings['enableTurnPageByVolumeKey'] == true;
     if (!shouldListen) {
-      _volumeListener?.cancel();
-      _volumeListener = null;
+      VolumePageTurnRegistry.unregister(this);
       return;
     }
-    _volumeListener ??= VolumeListener(
+    VolumePageTurnRegistry.register(
+      this,
+      canHandle: () => _canHandleVolumeKey,
       onDown: () {
-        if (_canHandleVolumeKey) {
-          _toNextSourcePage();
-        }
+        _toNextSourcePage();
       },
       onUp: () {
-        if (_canHandleVolumeKey) {
-          _toPreviousSourcePage();
-        }
+        _toPreviousSourcePage();
       },
-    )..listen();
+    );
   }
 
   void _toNextSourcePage() {
@@ -298,7 +296,7 @@ class _SliverSearchResultState extends State<_SliverSearchResult>
     with AutomaticKeepAliveClientMixin {
   bool isLoading = true;
 
-  static const _kComicHeight = 162.0;
+  static const _kComicHeight = 176.0;
 
   get _comicWidth => _kComicHeight * 0.7;
 

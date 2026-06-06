@@ -383,7 +383,7 @@ class ComicTile extends StatelessWidget {
                 child: Text(
                   comic.title.replaceAll('\n', ''),
                   maxLines: 1,
-                  overflow: TextOverflow.clip,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     fontWeight: FontWeight.w500,
                   ),
@@ -1099,8 +1099,6 @@ class _EInkComicGridPagerState extends State<EInkComicGridPager> {
 
   int _lastScreenPageCount = 1;
 
-  VolumeListener? _volumeListener;
-
   List<int> _heroIDs = [];
 
   static int _nextHeroID = 0;
@@ -1125,7 +1123,7 @@ class _EInkComicGridPagerState extends State<EInkComicGridPager> {
 
   @override
   void dispose() {
-    _volumeListener?.cancel();
+    VolumePageTurnRegistry.unregister(this);
     HistoryManager().removeListener(_update);
     appdata.settings.removeListener(_update);
     super.dispose();
@@ -1145,6 +1143,9 @@ class _EInkComicGridPagerState extends State<EInkComicGridPager> {
         appdata.settings['eInkMode'] != true) {
       return false;
     }
+    if (!TickerMode.of(context)) {
+      return false;
+    }
     final route = ModalRoute.of(context);
     return route?.isCurrent ?? true;
   }
@@ -1154,22 +1155,19 @@ class _EInkComicGridPagerState extends State<EInkComicGridPager> {
         appdata.settings['eInkMode'] == true &&
         appdata.settings['enableTurnPageByVolumeKey'] == true;
     if (!shouldListen) {
-      _volumeListener?.cancel();
-      _volumeListener = null;
+      VolumePageTurnRegistry.unregister(this);
       return;
     }
-    _volumeListener ??= VolumeListener(
+    VolumePageTurnRegistry.register(
+      this,
+      canHandle: () => _canHandleVolumeKey,
       onDown: () {
-        if (_canHandleVolumeKey) {
-          _toNextScreenPage();
-        }
+        _toNextScreenPage();
       },
       onUp: () {
-        if (_canHandleVolumeKey) {
-          _toPreviousScreenPage();
-        }
+        _toPreviousScreenPage();
       },
-    )..listen();
+    );
   }
 
   void _update() {
@@ -1337,8 +1335,6 @@ class ComicListState extends State<ComicList> {
 
   String? _nextUrl;
 
-  VolumeListener? _volumeListener;
-
   late bool enablePageStorage = widget.enablePageStorage;
 
   Map<String, dynamic> get state => {
@@ -1404,7 +1400,7 @@ class ComicListState extends State<ComicList> {
 
   @override
   void dispose() {
-    _volumeListener?.cancel();
+    VolumePageTurnRegistry.unregister(this);
     HistoryManager().removeListener(_onListChanged);
     appdata.settings.removeListener(_onSettingsChanged);
     super.dispose();
@@ -1432,6 +1428,9 @@ class ComicListState extends State<ComicList> {
     if (appdata.settings['enableTurnPageByVolumeKey'] != true) {
       return false;
     }
+    if (!TickerMode.of(context)) {
+      return false;
+    }
     final route = ModalRoute.of(context);
     return route?.isCurrent ?? true;
   }
@@ -1442,22 +1441,19 @@ class ComicListState extends State<ComicList> {
         App.isAndroid &&
         appdata.settings['enableTurnPageByVolumeKey'] == true;
     if (!shouldListen) {
-      _volumeListener?.cancel();
-      _volumeListener = null;
+      VolumePageTurnRegistry.unregister(this);
       return;
     }
-    _volumeListener ??= VolumeListener(
+    VolumePageTurnRegistry.register(
+      this,
+      canHandle: () => _canHandleVolumeKey,
       onDown: () {
-        if (_canHandleVolumeKey) {
-          _toNextScreenPage();
-        }
+        _toNextScreenPage();
       },
       onUp: () {
-        if (_canHandleVolumeKey) {
-          _toPreviousScreenPage();
-        }
+        _toPreviousScreenPage();
       },
-    )..listen();
+    );
   }
 
   void refresh() {
@@ -2261,8 +2257,13 @@ class _SMClipper extends CustomClipper<Rect> {
 }
 
 class SimpleComicTile extends StatelessWidget {
-  const SimpleComicTile(
-      {super.key, required this.comic, this.onTap, this.withTitle = false, this.heroID});
+  const SimpleComicTile({
+    super.key,
+    required this.comic,
+    this.onTap,
+    this.withTitle = false,
+    this.heroID,
+  });
 
   final Comic comic;
 
@@ -2329,11 +2330,17 @@ class SimpleComicTile extends StatelessWidget {
           const SizedBox(height: 4),
           SizedBox(
             width: 92,
+            height: 20,
             child: Center(
               child: Text(
                 comic.title.replaceAll('\n', ''),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 14,
+                  height: 1.1,
+                ),
               ),
             ),
           ),
