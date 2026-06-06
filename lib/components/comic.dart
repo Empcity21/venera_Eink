@@ -825,20 +825,6 @@ class _SliverGridComicsState extends State<SliverGridComics> {
 
   @override
   Widget build(BuildContext context) {
-    if (appdata.settings['eInkMode'] == true) {
-      return SliverFillRemaining(
-        hasScrollBody: false,
-        child: EInkComicGridPager(
-          comics: comics,
-          selections: widget.selections,
-          onLastItemBuild: widget.onLastItemBuild,
-          badgeBuilder: widget.badgeBuilder,
-          menuBuilder: widget.menuBuilder,
-          onTap: widget.onTap,
-          onLongPressed: widget.onLongPressed,
-        ),
-      );
-    }
     return _SliverGridComics(
       comics: comics,
       heroIDs: heroIDs,
@@ -1804,6 +1790,10 @@ class ComicListState extends State<ComicList> {
     final canGoBack = _screenPage > 0 || _canGoToPreviousNetworkPage;
     final canGoNext =
         _screenPage < screenPageCount - 1 || _canGoToNextNetworkPage;
+    final pageText = _maxPage == null || _maxPage == 1
+        ? "${"Page".tl} ${_screenPage + 1} / $screenPageCount"
+        : "${"Page".tl} $_page / $_maxPage  -  "
+            "${_screenPage + 1} / $screenPageCount";
     return SizedBox(
       height: 52,
       child: Row(
@@ -1815,8 +1805,7 @@ class ComicListState extends State<ComicList> {
           Expanded(
             child: Center(
               child: Text(
-                "${"Page".tl} $_page / ${_maxPage ?? '?'}  -  "
-                "${_screenPage + 1} / $screenPageCount",
+                pageText,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
