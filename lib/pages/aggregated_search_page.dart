@@ -35,7 +35,7 @@ class _AggregatedSearchPageState extends State<AggregatedSearchPage> {
 
   final _preloadingKeys = <String>{};
 
-  static const _kSourceRowHeight = 264.0;
+  static const _kSourceRowHeight = 220.0;
 
   bool get _eInkMode => appdata.settings['eInkMode'] == true;
 
@@ -350,7 +350,10 @@ class _SliverSearchResultState extends State<_SliverSearchResult>
 
   static const _kComicHeight = 176.0;
 
-  get _comicWidth => _kComicHeight * 0.7;
+  double get _comicHeight =>
+      appdata.settings['eInkMode'] == true ? 144.0 : _kComicHeight;
+
+  get _comicWidth => _comicHeight * 0.7;
 
   static const _kLeftPadding = 16.0;
 
@@ -460,7 +463,7 @@ class _SliverSearchResultState extends State<_SliverSearchResult>
 
   Widget buildPlaceHolder() {
     return Container(
-      height: _kComicHeight,
+      height: _comicHeight,
       width: _comicWidth,
       margin: const EdgeInsets.only(left: _kLeftPadding),
       decoration: BoxDecoration(
@@ -599,7 +602,7 @@ class _SliverSearchResultState extends State<_SliverSearchResult>
           ),
           if (isLoading)
             SizedBox(
-              height: _kComicHeight,
+              height: _comicHeight,
               width: double.infinity,
               child: buildPlaceholders(
                 shimmer: appdata.settings['eInkMode'] != true,
@@ -607,7 +610,7 @@ class _SliverSearchResultState extends State<_SliverSearchResult>
             )
           else if (error != null || comics == null || comics!.isEmpty)
             SizedBox(
-              height: _kComicHeight,
+              height: _comicHeight,
               child: Column(
                 children: [
                   Row(
@@ -629,11 +632,11 @@ class _SliverSearchResultState extends State<_SliverSearchResult>
             )
           else
             SizedBox(
-              height: _kComicHeight,
+              height: _comicHeight,
               child: buildComicsStrip(),
             ),
         ],
-      ).paddingBottom(16),
+      ).paddingBottom(appdata.settings['eInkMode'] == true ? 4 : 16),
     );
   }
 

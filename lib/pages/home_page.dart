@@ -39,8 +39,8 @@ class HomePage extends StatelessWidget {
         const _History(),
         const _Local(),
         const FollowUpdatesWidget(),
-        const _ComicSourceWidget(),
         const ImageFavorites(),
+        const _ComicSourceWidget(),
         SliverPadding(padding: EdgeInsets.only(top: context.padding.bottom)),
       ],
     );

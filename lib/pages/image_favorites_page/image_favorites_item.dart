@@ -356,7 +356,7 @@ class _EInkImageFavoriteStripState extends State<_EInkImageFavoriteStrip> {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        const itemWidth = 106.0;
+        const itemWidth = 114.0;
         final itemsPerPage =
             math.max(1, constraints.maxWidth ~/ itemWidth);
         final pageCount =
