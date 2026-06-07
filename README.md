@@ -1,3 +1,4 @@
+This project is a fork of venera-app/venera and remains licensed under GPL-3.0.
 # Venera E-Ink
 
 基于 [venera-app/venera](https://github.com/venera-app/venera) 修改的墨水屏优化版本。
